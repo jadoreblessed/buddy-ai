@@ -98,3 +98,50 @@
   .step-status { grid-column: 2; padding: 0; }
   .step-current, .step-pending { margin: 0 -10px; padding: 22px 15px; }
 }
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(20 20 20 / 55%);
+}
+
+.confirm-modal {
+  width: min(100%, 490px);
+  padding: 28px;
+  border: 1px solid #171717;
+  background: #fff;
+  box-shadow: 10px 10px 0 #a36bf0;
+}
+
+.confirm-modal h2 {
+  margin: 22px 0 14px;
+  font-size: 38px;
+  letter-spacing: -2px;
+}
+
+.confirm-modal > p:not(.eyebrow) {
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.confirm-actions .action-button {
+  margin: 0;
+}
+
+.cancel-button {
+  padding: 12px 17px;
+  border: 1px solid #171717;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
