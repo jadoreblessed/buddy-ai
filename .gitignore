@@ -3,3 +3,4 @@ frontend/dist/
 backend/data/
 .env
 coverage.out
+mock-service/data/

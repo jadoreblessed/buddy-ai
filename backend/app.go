@@ -34,12 +34,22 @@ type Plan struct {
 }
 
 type App struct {
-	mu      sync.Mutex
-	request *Request
-	file    string
+	mu         sync.Mutex
+	request    *Request
+	file       string
+	serviceURL string
 }
 
 func (a *App) getPlan(w http.ResponseWriter, r *http.Request) {
+	if a.serviceURL != "" {
+		if err := a.syncRequest(r.Context()); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{
+				"error": "Сервис заявок недоступен",
+			})
+			return
+		}
+	}
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -78,6 +88,15 @@ func (a *App) getPlan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) getRequest(w http.ResponseWriter, r *http.Request) {
+	if a.serviceURL != "" {
+		if err := a.syncRequest(r.Context()); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{
+				"error": "Сервис заявок недоступен",
+			})
+			return
+		}
+	}
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -88,10 +107,18 @@ func (a *App) getRequest(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) createRequest(w http.ResponseWriter, r *http.Request) {
 	user := r.Header.Get("X-Demo-User")
-	if user != "" && user != "intern-1" {
+	if user == "" {
+		user = "intern-1"
+	}
+	if user != "intern-1" {
 		writeJSON(w, http.StatusForbidden, map[string]string{
 			"error": "Заявку может создать только стажёр",
 		})
+		return
+	}
+
+	if a.serviceURL != "" {
+		a.forwardAction(w, r, "/requests", user)
 		return
 	}
 
@@ -132,6 +159,16 @@ func (a *App) approveRequest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{
 			"error": "Согласовать заявку может только наставник",
 		})
+		return
+	}
+
+	if a.serviceURL != "" {
+		a.forwardAction(
+			w,
+			r,
+			"/requests/"+r.PathValue("id")+"/approve",
+			"mentor-1",
+		)
 		return
 	}
 

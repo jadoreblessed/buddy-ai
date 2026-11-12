@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 )
 
@@ -11,7 +12,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	app.serviceURL = os.Getenv("TICKET_SERVICE_URL")
+	if app.serviceURL == "" {
+		app.serviceURL = "http://localhost:8081"
+	}
 	log.Println("Сервер запущен на http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", newHandler(app)))
 }
