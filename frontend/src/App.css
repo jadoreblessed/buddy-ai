@@ -28,7 +28,7 @@
 .topbar { display: flex; justify-content: space-between; align-items: center; height: 77px; padding: 0 7%; border-bottom: 1px solid #222; font-size: 12px; font-weight: 800; }
 .topbar b { color: #ee515b; font-size: 18px; padding-left: 4px; }
 .content { max-width: 1250px; margin: 0 auto; padding: 59px 7% 90px; }
-.error-banner { margin-bottom: 20px; padding: 14px 18px; background: #ffe2e2; font-weight: 700; }
+.error-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 20px; padding: 14px 18px; background: #ffe2e2; font-weight: 700; }
 .hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 30px; min-height: 330px; }
 .hero .eyebrow { margin: 0 0 20px; }
 .hero h1, .inner-page h1 { margin: 0; font-size: clamp(48px, 5.2vw, 78px); line-height: .98; letter-spacing: -5px; font-weight: 950; }
@@ -59,6 +59,7 @@
 .action-button { margin-top: 20px; border: 1px solid #222; padding: 12px 17px; background: #62db69; font-size: 13px; font-weight: 900; }
 .action-button:hover { background: #4eca59; }
 .text-button { margin-top: 18px; padding: 0; border: 0; border-bottom: 1px solid #222; background: none; font-size: 13px; font-weight: 700; }
+.error-banner .text-button { margin-top: 0; }
 .inner-page { padding-top: 4px; }
 .inner-page h1 { margin: 20px 0 45px; }
 .request-card { max-width: 700px; min-height: 280px; padding: 28px; border: 1px solid #222; background: #f9f8f6; }

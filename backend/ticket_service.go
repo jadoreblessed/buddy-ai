@@ -1,79 +1,87 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
-func (a *App) callService(ctx context.Context, method, path, user string) (*Request, int, error) {
-	url := strings.TrimRight(a.serviceURL, "/") + path
+type TicketClient struct {
+	baseURL string
+	client  *http.Client
+}
 
-	request, err := http.NewRequestWithContext(ctx, method, url, nil)
+func NewTicketClient(baseURL string) *TicketClient {
+	return &TicketClient{
+		baseURL: strings.TrimRight(baseURL, "/"),
+		client:  &http.Client{Timeout: 5 * time.Second},
+	}
+}
+
+func (c *TicketClient) call(ctx context.Context, method, path, user string, body io.Reader) (*Request, int, error) {
+	request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return nil, 0, err
 	}
 	if user != "" {
 		request.Header.Set("X-Demo-User", user)
 	}
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	response, err := client.Do(request)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := c.client.Do(request)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer response.Body.Close()
-
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, response.StatusCode, fmt.Errorf("сервис вернул HTTP %d", response.StatusCode)
+		return nil, response.StatusCode, fmt.Errorf("сервис заявок вернул HTTP %d", response.StatusCode)
 	}
-
 	var result struct {
 		Request *Request `json:"request"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		return nil, response.StatusCode, err
+		return nil, response.StatusCode, fmt.Errorf("прочитать ответ сервиса заявок: %w", err)
 	}
-
 	return result.Request, response.StatusCode, nil
 }
 
-func (a *App) syncRequest(ctx context.Context) error {
-	request, _, err := a.callService(ctx, http.MethodGet, "/requests/current", "")
-	if err != nil {
-		log.Printf("Сервис заявок: %v", err)
-		return err
+func (c *TicketClient) GetCurrent(ctx context.Context, internID, planID, stepID string) (*Request, error) {
+	query := url.Values{
+		"internId": {internID},
+		"planId":   {planID},
+		"stepId":   {stepID},
 	}
-
-	a.mu.Lock()
-	a.request = request
-	a.mu.Unlock()
-	return nil
+	request, _, err := c.call(ctx, http.MethodGet, "/requests/current?"+query.Encode(), "", nil)
+	return request, err
 }
 
-func (a *App) forwardAction(w http.ResponseWriter, r *http.Request, path, user string) {
-	request, status, err := a.callService(r.Context(), http.MethodPost, path, user)
+func (c *TicketClient) Create(ctx context.Context, user, planID, stepID, resource string) (*Request, int, error) {
+	body, err := json.Marshal(struct {
+		PlanID   string `json:"planId"`
+		StepID   string `json:"stepId"`
+		Resource string `json:"resource"`
+	}{planID, stepID, resource})
 	if err != nil {
-		log.Printf("Сервис заявок: %v", err)
-
-		if status == http.StatusNotFound {
-			writeJSON(w, status, map[string]string{"error": "Заявка не найдена"})
-			return
-		}
-
-		writeJSON(w, http.StatusBadGateway, map[string]string{
-			"error": "Не удалось выполнить действие через сервис заявок",
-		})
-		return
+		return nil, 0, err
 	}
+	request, status, err := c.call(ctx, http.MethodPost, "/requests", user, bytes.NewReader(body))
+	if err == nil && request == nil {
+		err = fmt.Errorf("сервис заявок не вернул заявку")
+	}
+	return request, status, err
+}
 
-	a.mu.Lock()
-	a.request = request
-	a.mu.Unlock()
-
-	writeJSON(w, status, map[string]*Request{"request": request})
+func (c *TicketClient) Approve(ctx context.Context, user, id string) (*Request, int, error) {
+	request, status, err := c.call(ctx, http.MethodPost, "/requests/"+url.PathEscape(id)+"/approve", user, nil)
+	if err == nil && request == nil {
+		err = fmt.Errorf("сервис заявок не вернул заявку")
+	}
+	return request, status, err
 }

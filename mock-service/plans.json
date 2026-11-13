@@ -1,0 +1,45 @@
+[
+  {
+    "planId": "onboarding-backend-v1",
+    "internId": "intern-1",
+    "intern": "Маша Ковалёва",
+    "position": "backend",
+    "role": "Backend-разработчик",
+    "team": "Команда платформы",
+    "steps": [
+      {"id": "backend-intro", "title": "Знакомство с платформой", "detail": "Разобраться в сервисах команды, их владельцах и схеме взаимодействия.", "actionType": "none", "completed": true},
+      {"id": "backend-access", "title": "Доступ к тестовому окружению", "detail": "Запросить доступ к стенду для запуска и проверки сервисов.", "actionType": "request_access", "completed": false, "resource": "Тестовое окружение"},
+      {"id": "backend-local", "title": "Запуск API локально", "detail": "Поднять сервис и проверить основные HTTP-маршруты.", "actionType": "none", "completed": false},
+      {"id": "backend-task", "title": "Первый обработчик", "detail": "Добавить обработчик и обсудить тесты с наставником.", "actionType": "none", "completed": false}
+    ]
+  },
+  {
+    "planId": "onboarding-frontend-v1",
+    "internId": "intern-1",
+    "intern": "Маша Ковалёва",
+    "position": "frontend",
+    "role": "Frontend-разработчик",
+    "team": "Команда интерфейсов",
+    "steps": [
+      {"id": "frontend-design", "title": "Знакомство с дизайн-системой", "detail": "Изучить библиотеку компонентов и правила оформления экранов.", "actionType": "none", "completed": true},
+      {"id": "frontend-run", "title": "Локальная сборка интерфейса", "detail": "Запустить приложение и разобраться со структурой страниц.", "actionType": "none", "completed": true},
+      {"id": "frontend-a11y", "title": "Проверка доступности", "detail": "Проверить навигацию с клавиатуры на экране профиля.", "actionType": "none", "completed": true},
+      {"id": "frontend-access", "title": "Доступ к стенду интерфейсов", "detail": "Запросить доступ для проверки изменений в браузере команды.", "actionType": "request_access", "completed": false, "resource": "Стенд интерфейсов"},
+      {"id": "frontend-task", "title": "Первый компонент", "detail": "Сделать компонент по макету и отправить его на ревью.", "actionType": "none", "completed": false}
+    ]
+  },
+  {
+    "planId": "onboarding-analyst-v1",
+    "internId": "intern-1",
+    "intern": "Маша Ковалёва",
+    "position": "analyst",
+    "role": "Системный аналитик",
+    "team": "Команда аналитики",
+    "steps": [
+      {"id": "analyst-access", "title": "Доступ к каталогу метрик", "detail": "Запросить доступ к определениям показателей и наборам данных.", "actionType": "request_access", "completed": false, "resource": "Каталог метрик"},
+      {"id": "analyst-domain", "title": "Карта бизнес-процессов", "detail": "Изучить путь заявки от создания до закрытия.", "actionType": "none", "completed": false},
+      {"id": "analyst-query", "title": "Проверка гипотезы", "detail": "Сформулировать вопросы к данным и проверить выборку с наставником.", "actionType": "none", "completed": false},
+      {"id": "analyst-report", "title": "Описание требований", "detail": "Описать метрики и критерии приёмки для команды.", "actionType": "none", "completed": false}
+    ]
+  }
+]

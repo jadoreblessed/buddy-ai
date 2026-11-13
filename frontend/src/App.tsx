@@ -4,32 +4,38 @@ import './App.css'
 type Status = 'done' | 'current' | 'pending' | 'locked'
 
 type Step = {
-  id: number
+  id: string
   title: string
   detail: string
+  actionType: 'none' | 'request_access'
   status: Status
+  resource?: string
 }
 
 type AccessRequest = {
   id: string
+  internId: string
+  planId: string
+  stepId: string
   resource: string
-  status: string
+  status: 'pending' | 'approved'
   createdAt: string
   approvedAt?: string
 }
 
 type Plan = {
+  planId: string
   intern: string
+  position: 'backend' | 'frontend' | 'analyst'
   role: string
   team: string
   progress: number
   steps: Step[]
   request: AccessRequest | null
 }
-
 type Page = 'plan' | 'buddy' | 'request'
 
-const API = 'http://localhost:8080'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
 const statusText: Record<Status, string> = {
   done: 'Выполнено',
@@ -42,18 +48,35 @@ function App() {
   const [plan, setPlan] = useState<Plan | null>(null)
   const [page, setPage] = useState<Page>('plan')
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmStepId, setConfirmStepId] = useState<string | null>(null)
 
   const loadPlan = useCallback(async () => {
+    setLoading(true)
     try {
       const response = await fetch(`${API}/api/plan`)
-      if (!response.ok) throw new Error('Не удалось загрузить план')
+      if (!response.ok) {
+        const body = await response.text()
+        let message = body.trim()
+        try {
+          const data = JSON.parse(body) as { error?: string }
+          message = data.error || message
+        } catch {
+          // Non-JSON API errors are already readable as text.
+        }
+        throw new Error(message || `Не удалось загрузить план (${response.status})`)
+      }
 
       setPlan((await response.json()) as Plan)
       setError('')
-    } catch {
-      setError('Нет связи с Go-сервером. Запусти go run ./backend.')
+    } catch (cause) {
+      setPlan(null)
+      setError(cause instanceof Error && cause.message !== 'Failed to fetch'
+        ? cause.message
+        : 'Нет связи с Go-сервером. Запусти go run ./backend.')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -81,8 +104,12 @@ function App() {
     }
   }
 
-  const request = plan?.request
-  const total = plan?.steps.length ?? 4
+  const request = plan && plan.request?.planId === plan.planId ? plan.request : null
+  const currentStep = plan?.steps.find((step) => step.status === 'current' || step.status === 'pending')
+  const accessStep = plan?.steps.find((step) => step.actionType === 'request_access')
+  const requestStep = plan?.steps.find((step) => step.id === request?.stepId)
+  const confirmStep = plan?.steps.find((step) => step.id === confirmStepId && step.status === 'current' && step.actionType === 'request_access')
+  const total = plan?.steps.length ?? 0
 
   return (
     <div className="app-shell">
@@ -128,13 +155,15 @@ function App() {
           </div>
         </div>
 
-        <div className="profile">
-          <span className="avatar">М</span>
-          <span>
-            <strong>{plan?.intern ?? 'Маша Ковалёва'}</strong>
-            <small>{plan ? `${plan.role} · ${plan.team}` : 'Стажёр'}</small>
-          </span>
-        </div>
+        {plan && (
+          <div className="profile">
+            <span className="avatar">{plan.intern.charAt(0)}</span>
+            <span>
+              <strong>{plan.intern}</strong>
+              <small>{plan.role} · {plan.team}</small>
+            </span>
+          </div>
+        )}
       </aside>
 
       <div className="workspace">
@@ -146,9 +175,15 @@ function App() {
         </header>
 
         <main className="content">
-          {error && <div className="error-banner">{error}</div>}
+          {error && (
+            <div className="error-banner" role="alert">
+              <span>{error}</span>
+              {!plan && <button className="text-button" onClick={() => void loadPlan()} disabled={loading}>Повторить ↗</button>}
+            </div>
+          )}
+          {loading && !plan && <p role="status">Загружаем назначенный план…</p>}
 
-          {page === 'plan' && (
+          {plan && page === 'plan' && (
             <>
               <section className="hero">
                 <div className="hero-copy">
@@ -159,8 +194,8 @@ function App() {
                     Давай по шагам.
                   </h1>
                   <p className="hero-description">
-                    Знакомство, инструменты, доступы и первая задача — всё в одном маршруте.
-                    Неясно, что делать дальше? Открой подсказки помощника.
+                    Твой маршрут на позиции {plan.position}: {plan.role} в команде
+                    «{plan.team}». Неясно, что делать дальше? Открой подсказки помощника.
                   </p>
                 </div>
 
@@ -170,7 +205,7 @@ function App() {
                     <br />
                     старта
                   </span>
-                  <b>01—04</b>
+                  <b>01—{String(total).padStart(2, '0')}</b>
                   <i>✳</i>
                 </div>
               </section>
@@ -181,60 +216,58 @@ function App() {
                     <p className="eyebrow">01 / Твой маршрут</p>
                     <h2>План первого дня</h2>
                     <p className="section-subtitle">
-                      {request?.status === 'approved'
-                        ? 'Доступ согласован. Можно переходить к первой задаче.'
-                        : request
-                          ? 'Заявка на доступ ожидает согласования.'
-                          : 'Следующий шаг — получить доступ к тестовому окружению.'}
+                      {currentStep
+                        ? `${currentStep.status === 'pending' ? 'Ожидает согласования' : 'Сейчас'}: ${currentStep.title}.`
+                        : 'Все шаги плана выполнены.'}
                     </p>
                   </div>
 
                   <strong className="progress-label">
-                    {plan?.progress ?? 0} из {total}
+                    {plan.progress} из {total}
                   </strong>
                 </div>
 
                 <div
                   className="progress-track"
                   role="progressbar"
-                  aria-valuenow={plan?.progress ?? 0}
+                  aria-valuenow={plan.progress}
                   aria-valuemin={0}
                   aria-valuemax={total}
                 >
                   <span
                     style={{
-                      width: `${((plan?.progress ?? 0) / total) * 100}%`,
+                      width: `${total ? (plan.progress / total) * 100 : 0}%`,
                     }}
                   />
                 </div>
 
                 <div className="steps">
-                  {plan?.steps.map((step) => (
+                  {plan.steps.map((step, index) => (
                     <article className={`step step-${step.status}`} key={step.id}>
                       <span className="step-number">
-                        {String(step.id).padStart(2, '0')}
+                        {String(index + 1).padStart(2, '0')}
                       </span>
 
                       <div className="step-body">
                         <h3>{step.title}</h3>
                         <p>{step.detail}</p>
 
-                        {step.id === 3 && step.status === 'current' && (
+                        {step.actionType === 'request_access' && step.status === 'current' && (
                           <button
                             className="action-button"
-                            disabled={busy}
-                            onClick={() => setConfirmOpen(true)}
+                            disabled={busy || !step.resource}
+                            onClick={() => setConfirmStepId(step.id)}
                           >
                             Запросить доступ ↗
                           </button>
                         )}
 
-                        {step.id === 3 && step.status === 'pending' && (
+                        {step.actionType === 'request_access' && step.status === 'pending' && request?.stepId === step.id && (
                           <button
                             className="text-button"
                             onClick={() => setPage('request')}
                           >
-                            Заявка {request?.id} · посмотреть статус ↗
+                            Заявка {request.id} · посмотреть статус ↗
                           </button>
                         )}
                       </div>
@@ -249,7 +282,7 @@ function App() {
             </>
           )}
 
-          {page === 'request' && (
+          {plan && page === 'request' && (
             <section className="inner-page">
               <p className="eyebrow">02 / Корпоративный сервис</p>
               <h1>
@@ -258,7 +291,7 @@ function App() {
 
               {request ? (
                 <div className="request-card">
-                  <p className="eyebrow">Доступ к тестовому окружению</p>
+                  <p className="eyebrow">Доступ: {request.resource}</p>
                   <h2>Заявка {request.id}</h2>
 
                   <span className={`request-badge ${request.status}`}>
@@ -267,7 +300,7 @@ function App() {
                       : 'Ожидает согласования'}
                   </span>
 
-                  <p>Заявка сохранена и связана с третьим шагом плана адаптации.</p>
+                  <p>Заявка связана с шагом «{requestStep?.title ?? request.stepId}» плана для позиции {plan.position} в команде «{plan.team}».</p>
 
                   {request.status === 'pending' && (
                     <button
@@ -287,7 +320,7 @@ function App() {
               ) : (
                 <div className="request-card">
                   <h2>Заявки пока нет</h2>
-                  <p>Вернись к плану и создай её на третьем шаге.</p>
+                  <p>{accessStep ? `Вернись к плану: заявка создаётся на шаге «${accessStep.title}».` : 'В этом плане пока нет шага для заявки.'}</p>
                   <button
                     className="action-button"
                     onClick={() => setPage('plan')}
@@ -299,7 +332,7 @@ function App() {
             </section>
           )}
 
-          {page === 'buddy' && (
+          {plan && page === 'buddy' && (
             <section className="inner-page">
               <p className="eyebrow">03 / Помощник</p>
               <h1>
@@ -310,11 +343,11 @@ function App() {
                 <span className="helper-icon">✳</span>
                 <h2>Что делать сейчас?</h2>
                 <p>
-                  {request?.status === 'approved'
-                    ? 'Доступ согласован. Следующий шаг — приступить к первой задаче вместе с наставником.'
-                    : request
-                      ? `Заявка ${request.id} ожидает согласования. Её статус можно посмотреть в разделе «Моя заявка».`
-                      : 'Для первой задачи нужен доступ к тестовому окружению. Создай заявку в плане адаптации.'}
+                  {request?.status === 'pending'
+                    ? `Заявка ${request.id} на «${request.resource}» ожидает согласования. Её статус можно посмотреть в разделе «Моя заявка».`
+                    : currentStep
+                      ? `Сейчас: ${currentStep.title}. ${currentStep.detail}`
+                      : 'Все шаги плана выполнены.'}
                 </p>
 
                 <button
@@ -326,14 +359,14 @@ function App() {
               </div>
 
               <p className="page-footnote">
-                Сейчас здесь подсказка по данным плана. Диалог с моделью подключим отдельно.
+                Подсказка составлена по текущему шагу назначенного плана.
               </p>
             </section>
           )}
         </main>
       </div>
 
-      {confirmOpen && (
+      {confirmStep?.resource && plan && (
         <div className="modal-backdrop">
           <div
             className="confirm-modal"
@@ -341,17 +374,17 @@ function App() {
             aria-modal="true"
             aria-labelledby="confirm-title"
           >
-            <p className="eyebrow">03 / Подтверждение</p>
+            <p className="eyebrow">Подтверждение / {confirmStep.title}</p>
             <h2 id="confirm-title">Запросить доступ?</h2>
             <p>
-              Создадим заявку на доступ к тестовому окружению для команды
-              «Платформа заказов». После отправки её должен согласовать наставник.
+              Создадим заявку на доступ к «{confirmStep.resource}» для команды
+              «{plan.team}». После отправки её должен согласовать наставник.
             </p>
 
             <div className="confirm-actions">
               <button
                 className="cancel-button"
-                onClick={() => setConfirmOpen(false)}
+                onClick={() => setConfirmStepId(null)}
               >
                 Отмена
               </button>
@@ -359,7 +392,7 @@ function App() {
                 className="action-button"
                 disabled={busy}
                 onClick={() => {
-                  setConfirmOpen(false)
+                  setConfirmStepId(null)
                   void post('/api/requests', 'intern-1')
                 }}
               >

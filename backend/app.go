@@ -2,22 +2,27 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
-	"sync"
-	"time"
 )
 
+const demoInternID = "intern-1"
+
 type Step struct {
-	ID     int    `json:"id"`
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
-	Status string `json:"status"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Detail     string `json:"detail"`
+	ActionType string `json:"actionType"`
+	Resource   string `json:"resource,omitempty"`
+	Status     string `json:"status"`
 }
 
 type Request struct {
 	ID         string `json:"id"`
 	InternID   string `json:"internId"`
+	PlanID     string `json:"planId"`
+	StepID     string `json:"stepId"`
 	Resource   string `json:"resource"`
 	Status     string `json:"status"`
 	CreatedAt  string `json:"createdAt"`
@@ -25,7 +30,9 @@ type Request struct {
 }
 
 type Plan struct {
+	PlanID   string   `json:"planId"`
 	Intern   string   `json:"intern"`
+	Position string   `json:"position"`
 	Role     string   `json:"role"`
 	Team     string   `json:"team"`
 	Progress int      `json:"progress"`
@@ -34,123 +41,59 @@ type Plan struct {
 }
 
 type App struct {
-	mu         sync.Mutex
-	request    *Request
-	file       string
-	serviceURL string
+	source  OnboardingSource
+	tickets *TicketClient
 }
 
 func (a *App) getPlan(w http.ResponseWriter, r *http.Request) {
-	if a.serviceURL != "" {
-		if err := a.syncRequest(r.Context()); err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{
-				"error": "Сервис заявок недоступен",
-			})
-			return
-		}
+	plan, err := a.GetAssignedPlan(r.Context(), demoInternID)
+	if err != nil {
+		writePlanError(w, err)
+		return
 	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	accessStatus := "current"
-	accessDetail := "Создай заявку на доступ к тестовому окружению."
-	nextStatus := "locked"
-	progress := 2
-
-	if a.request != nil {
-		accessStatus = "pending"
-		accessDetail = "Заявка ожидает согласования."
-
-		if a.request.Status == "approved" {
-			accessStatus = "done"
-			accessDetail = "Доступ согласован."
-			nextStatus = "current"
-			progress = 3
-		}
-	}
-
-	plan := Plan{
-		Intern:   "Маша Ковалёва",
-		Role:     "Backend-стажёр",
-		Team:     "Платформа заказов",
-		Progress: progress,
-		Steps: []Step{
-			{1, "Познакомиться с командой", "Встреча с наставником завершена.", "done"},
-			{2, "Настроить инструменты", "Рабочая среда настроена.", "done"},
-			{3, "Получить доступ к тестовому окружению", accessDetail, accessStatus},
-			{4, "Начать первую задачу", "Следующий шаг после получения доступа.", nextStatus},
-		},
-		Request: a.request,
-	}
-
 	writeJSON(w, http.StatusOK, plan)
 }
 
 func (a *App) getRequest(w http.ResponseWriter, r *http.Request) {
-	if a.serviceURL != "" {
-		if err := a.syncRequest(r.Context()); err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{
-				"error": "Сервис заявок недоступен",
-			})
-			return
-		}
+	plan, err := a.GetAssignedPlan(r.Context(), demoInternID)
+	if err != nil {
+		writePlanError(w, err)
+		return
 	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	writeJSON(w, http.StatusOK, map[string]*Request{
-		"request": a.request,
-	})
+	writeJSON(w, http.StatusOK, map[string]*Request{"request": plan.Request})
 }
 
 func (a *App) createRequest(w http.ResponseWriter, r *http.Request) {
-	user := r.Header.Get("X-Demo-User")
-	if user == "" {
-		user = "intern-1"
-	}
-	if user != "intern-1" {
+	if r.Header.Get("X-Demo-User") != demoInternID {
 		writeJSON(w, http.StatusForbidden, map[string]string{
 			"error": "Заявку может создать только стажёр",
 		})
 		return
 	}
 
-	if a.serviceURL != "" {
-		a.forwardAction(w, r, "/requests", user)
+	plan, err := a.GetAssignedPlan(r.Context(), demoInternID)
+	if err != nil {
+		writePlanError(w, err)
 		return
 	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.request != nil {
-		writeJSON(w, http.StatusOK, map[string]*Request{
-			"request": a.request,
-		})
+	if plan.Request != nil {
+		writeJSON(w, http.StatusOK, map[string]*Request{"request": plan.Request})
 		return
 	}
-
-	request := &Request{
-		ID:        "DEMO-4906",
-		InternID:  "intern-1",
-		Resource:  "Тестовое окружение",
-		Status:    "pending",
-		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	for _, step := range plan.Steps {
+		if step.Status == "current" && step.ActionType == "request_access" {
+			request, status, err := a.tickets.Create(r.Context(), demoInternID,
+				plan.PlanID, step.ID, step.Resource)
+			if err != nil {
+				writeTicketError(w, status, err)
+				return
+			}
+			writeJSON(w, status, map[string]*Request{"request": request})
+			return
+		}
 	}
-
-	if err := a.save(request); err != nil {
-		log.Println("Не удалось сохранить заявку:", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "Не удалось сохранить заявку",
-		})
-		return
-	}
-
-	a.request = request
-	writeJSON(w, http.StatusCreated, map[string]*Request{
-		"request": request,
+	writeJSON(w, http.StatusConflict, map[string]string{
+		"error": "На текущем шаге заявка на доступ не требуется",
 	})
 }
 
@@ -161,49 +104,33 @@ func (a *App) approveRequest(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	if a.serviceURL != "" {
-		a.forwardAction(
-			w,
-			r,
-			"/requests/"+r.PathValue("id")+"/approve",
-			"mentor-1",
-		)
+	request, status, err := a.tickets.Approve(r.Context(), "mentor-1", r.PathValue("id"))
+	if err != nil {
+		writeTicketError(w, status, err)
 		return
 	}
+	writeJSON(w, status, map[string]*Request{"request": request})
+}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.request == nil || a.request.ID != r.PathValue("id") {
-		writeJSON(w, http.StatusNotFound, map[string]string{
-			"error": "Заявка не найдена",
-		})
+func writePlanError(w http.ResponseWriter, err error) {
+	if errors.Is(err, ErrInternNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "Стажёр не найден"})
 		return
 	}
+	log.Printf("План адаптации: %v", err)
+	writeJSON(w, http.StatusBadGateway, map[string]string{
+		"error": "Не удалось загрузить назначенный план или статус заявки",
+	})
+}
 
-	if a.request.Status == "approved" {
-		writeJSON(w, http.StatusOK, map[string]*Request{
-			"request": a.request,
-		})
+func writeTicketError(w http.ResponseWriter, status int, err error) {
+	log.Printf("Сервис заявок: %v", err)
+	if status == http.StatusNotFound {
+		writeJSON(w, status, map[string]string{"error": "Заявка не найдена"})
 		return
 	}
-
-	updated := *a.request
-	updated.Status = "approved"
-	updated.ApprovedAt = time.Now().UTC().Format(time.RFC3339)
-
-	if err := a.save(&updated); err != nil {
-		log.Println("Не удалось обновить заявку:", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "Не удалось обновить заявку",
-		})
-		return
-	}
-
-	a.request = &updated
-	writeJSON(w, http.StatusOK, map[string]*Request{
-		"request": a.request,
+	writeJSON(w, http.StatusBadGateway, map[string]string{
+		"error": "Не удалось выполнить действие через сервис заявок",
 	})
 }
 

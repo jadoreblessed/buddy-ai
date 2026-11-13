@@ -4,20 +4,27 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 )
 
 func main() {
-	app, err := newApp(filepath.Join("backend", "data", "request.json"))
-	if err != nil {
-		log.Fatal(err)
+	ticketURL := os.Getenv("TICKET_SERVICE_URL")
+	if ticketURL == "" {
+		ticketURL = "http://localhost:8081"
 	}
-	app.serviceURL = os.Getenv("TICKET_SERVICE_URL")
-	if app.serviceURL == "" {
-		app.serviceURL = "http://localhost:8081"
+	onboardingURL := os.Getenv("ONBOARDING_SERVICE_URL")
+	if onboardingURL == "" {
+		onboardingURL = ticketURL
 	}
-	log.Println("Сервер запущен на http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", newHandler(app)))
+	app := &App{
+		source:  NewHTTPOnboardingSource(onboardingURL),
+		tickets: NewTicketClient(ticketURL),
+	}
+	addr := os.Getenv("API_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	log.Printf("Сервер запущен на %s", addr)
+	log.Fatal(http.ListenAndServe(addr, newHandler(app)))
 }
 
 func newHandler(app *App) http.Handler {
@@ -34,11 +41,15 @@ func newHandler(app *App) http.Handler {
 }
 
 func allowFrontend(next http.Handler) http.Handler {
+	allowedOrigin := os.Getenv("FRONTEND_ORIGIN")
+	if allowedOrigin == "" {
+		allowedOrigin = "http://localhost:5173"
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		w.Header().Set("Vary", "Origin")
 
-		if origin != "" && origin != "http://localhost:5173" {
+		if origin != "" && origin != allowedOrigin {
 			http.Error(w, "Недопустимый адрес сайта", http.StatusForbidden)
 			return
 		}
