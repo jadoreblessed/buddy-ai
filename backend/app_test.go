@@ -196,6 +196,11 @@ func TestOriginAndMethods(t *testing.T) {
 	if options.Header().Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
 		t.Fatal("браузеру не разрешён доступ к API")
 	}
+	loopback := send(handler, "OPTIONS", "/api/requests", "", "http://127.0.0.1:5173")
+	requireStatus(t, loopback, http.StatusNoContent)
+	if loopback.Header().Get("Access-Control-Allow-Origin") != "http://127.0.0.1:5173" {
+		t.Fatal("браузеру на 127.0.0.1 не разрешён доступ к API")
+	}
 }
 
 func TestHTTPOnboardingSource(t *testing.T) {

@@ -1,0 +1,62 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+	"unicode/utf8"
+)
+
+func (a *App) answerBuddy(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Question string `json:"question"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Передай вопрос в формате JSON"})
+		return
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректный формат вопроса"})
+		return
+	}
+	input.Question = strings.TrimSpace(input.Question)
+	if input.Question == "" || utf8.RuneCountInString(input.Question) > 500 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Вопрос должен содержать от 1 до 500 символов"})
+		return
+	}
+	if a.assistant == nil || a.catalog == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Помощник не настроен"})
+		return
+	}
+	plan, err := a.GetAssignedPlan(r.Context(), demoInternID)
+	if err != nil {
+		writePlanError(w, err)
+		return
+	}
+	answer, err := a.assistant.Answer(r.Context(), plan, input.Question, a.catalog)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrAIUnconfigured):
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"error": "Модель не настроена. Укажи AI_API_KEY в .env и перезапусти Go-сервер.",
+			})
+		case errors.Is(err, ErrAIRateLimited):
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"error": "Лимит запросов к модели исчерпан. Попробуй позже.",
+			})
+		default:
+			log.Printf("Не удалось получить ответ AI: %v", err)
+			writeJSON(w, http.StatusBadGateway, map[string]string{
+				"error": "Модель недоступна. Попробуй позже.",
+			})
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, answer)
+}

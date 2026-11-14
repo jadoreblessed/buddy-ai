@@ -33,9 +33,19 @@ type Plan = {
   steps: Step[]
   request: AccessRequest | null
 }
-type Page = 'plan' | 'buddy' | 'request'
+type Page = 'plan' | 'buddy' | 'request' | 'materials'
+type Material = { id: string; title: string; content: string; url?: string }
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+type BuddySource = { id: string; title: string; excerpt: string }
+type BuddyTurn = {
+  question: string
+  answer?: string
+  sources?: BuddySource[]
+  model?: string
+  error?: string
+}
+
+const API = import.meta.env.VITE_API_URL || ''
 
 const statusText: Record<Status, string> = {
   done: 'Выполнено',
@@ -51,6 +61,15 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [confirmStepId, setConfirmStepId] = useState<string | null>(null)
+  const [question, setQuestion] = useState('')
+  const [turns, setTurns] = useState<BuddyTurn[]>([])
+  const [answering, setAnswering] = useState(false)
+  const [materials, setMaterials] = useState<Material[] | null>(null)
+  const [materialsKey, setMaterialsKey] = useState('')
+  const [materialsLoading, setMaterialsLoading] = useState(false)
+  const [materialsError, setMaterialsError] = useState('')
+  const [materialsAttempt, setMaterialsAttempt] = useState(0)
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null)
 
   const loadPlan = useCallback(async () => {
     setLoading(true)
@@ -58,14 +77,14 @@ function App() {
       const response = await fetch(`${API}/api/plan`)
       if (!response.ok) {
         const body = await response.text()
-        let message = body.trim()
+        let message = `Не удалось загрузить план (${response.status})`
         try {
           const data = JSON.parse(body) as { error?: string }
           message = data.error || message
         } catch {
-          // Non-JSON API errors are already readable as text.
+          // A proxy can return HTML; never render its entire response in the UI.
         }
-        throw new Error(message || `Не удалось загрузить план (${response.status})`)
+        throw new Error(message)
       }
 
       setPlan((await response.json()) as Plan)
@@ -83,6 +102,105 @@ function App() {
   useEffect(() => {
     void loadPlan()
   }, [loadPlan])
+  const planKey = plan ? `${plan.planId}:${plan.position}` : ''
+  useEffect(() => {
+    if (!planKey) return
+    const controller = new AbortController()
+    setMaterialsLoading(true)
+    setMaterialsError('')
+    void (async () => {
+      try {
+        const response = await fetch(`${API}/api/materials`, { signal: controller.signal })
+        if (!response.ok) throw new Error(`Не удалось загрузить материалы (${response.status})`)
+        const data = await response.json() as { materials?: Material[] }
+        if (!Array.isArray(data.materials)) throw new Error('Сервер вернул неполный список материалов.')
+        if (!controller.signal.aborted) {
+          setMaterials(data.materials)
+          setMaterialsKey(planKey)
+        }
+      } catch (cause) {
+        if (!controller.signal.aborted) {
+          setMaterialsError(cause instanceof Error && cause.message !== 'Failed to fetch'
+            ? cause.message : 'Нет связи с сервером материалов.')
+        }
+      } finally {
+        if (!controller.signal.aborted) setMaterialsLoading(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [planKey, materialsAttempt])
+
+  function openMaterial(id: string) {
+    setSelectedMaterialId(id)
+    setPage('materials')
+    window.scrollTo(0, 0)
+  }
+  function renderAnswer(turn: BuddyTurn) {
+    let answer = turn.answer ?? ''
+    const listStart = answer.lastIndexOf('\nИсточники:')
+    if (listStart >= 0) {
+      const lines = answer.slice(listStart + '\nИсточники:'.length).trim().split('\n').filter(Boolean)
+      if (lines.length > 0 && lines.every((line) => {
+        const citations = [...line.matchAll(/\[([^\[\]\n]+)\]/g)]
+        return citations.length > 0 && citations.every((match) => turn.sources?.some((source) => source.id === match[1]))
+      })) {
+        answer = answer.slice(0, listStart).trimEnd()
+      }
+    }
+
+    const hasCitation = turn.sources?.some((source) => answer.includes(`[${source.id}]`))
+    const content = answer.split(/(\[[^\[\]\n]+\]|\*\*[^*\n]+\*\*|`[^`\n]+`)/g).map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) return <strong key={index}>{part.slice(2, -2)}</strong>
+      if (part.startsWith('`') && part.endsWith('`')) return <code key={index}>{part.slice(1, -1)}</code>
+      const source = part.startsWith('[') && part.endsWith(']')
+        ? turn.sources?.find((item) => item.id === part.slice(1, -1))
+        : undefined
+      if (!source) return part
+
+      const available = materialsKey === planKey && materials?.some((item) => item.id === source.id && !item.url)
+      return (
+        <button
+          type="button"
+          className="inline-source"
+          key={index}
+          disabled={!available}
+          aria-label={`Открыть источник: ${source.title}`}
+          title={available ? source.excerpt : 'Материал недоступен в текущем плане'}
+          onClick={() => openMaterial(source.id)}
+        >
+          <span>{source.title}</span>
+          <span aria-hidden="true">↗</span>
+        </button>
+      )
+    })
+
+    return (
+      <>
+        <p>{content}</p>
+        {turn.sources && turn.sources.length > 0 && !hasCitation && (
+          <div className="buddy-sources">
+            <strong>Материалы по теме</strong>
+            <div className="source-list">
+              {turn.sources.map((source) => (
+                <button
+                  type="button"
+                  className="inline-source"
+                  key={source.id}
+                  disabled={materialsKey !== planKey || !materials?.some((item) => item.id === source.id && !item.url)}
+                  aria-label={`Открыть источник: ${source.title}`}
+                  onClick={() => openMaterial(source.id)}
+                >
+                  <span>{source.title}</span>
+                  <span aria-hidden="true">↗</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
 
   async function post(path: string, user: string) {
     setBusy(true)
@@ -101,6 +219,52 @@ function App() {
       setError('Действие не выполнено. Проверь, запущен ли Go-сервер.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function askBuddy(value: string, retryIndex?: number) {
+    const trimmed = value.trim()
+    if (!trimmed || answering) return
+
+    const index = retryIndex ?? turns.length
+    setAnswering(true)
+    setQuestion('')
+    if (retryIndex === undefined) {
+      setTurns((previous) => [...previous, { question: trimmed }])
+    } else {
+      setTurns((previous) => previous.map((turn, position) =>
+        position === index ? { question: turn.question } : turn,
+      ))
+    }
+
+    try {
+      const response = await fetch(`${API}/api/buddy/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: trimmed }),
+      })
+      const data = await response.json() as {
+        answer?: string
+        sources?: BuddySource[]
+        error?: string
+        model?: string
+      }
+      if (!response.ok) throw new Error(data.error || `Не удалось получить ответ (${response.status})`)
+      if (typeof data.answer !== 'string' || !Array.isArray(data.sources)) {
+        throw new Error('Сервер вернул неполный ответ. Попробуй ещё раз.')
+      }
+      setTurns((previous) => previous.map((turn, position) =>
+        position === index ? { question: trimmed, answer: data.answer, sources: data.sources, model: data.model } : turn,
+      ))
+    } catch (cause) {
+      const message = cause instanceof Error && cause.message !== 'Failed to fetch' && !(cause instanceof SyntaxError)
+        ? cause.message
+        : 'Нет связи с помощником. Проверь, запущен ли сервер, и попробуй ещё раз.'
+      setTurns((previous) => previous.map((turn, position) =>
+        position === index ? { question: trimmed, error: message } : turn,
+      ))
+    } finally {
+      setAnswering(false)
     }
   }
 
@@ -147,11 +311,17 @@ function App() {
             >
               <span>↗</span> Моя заявка
             </button>
+
+            <button
+              className={page === 'materials' ? 'active' : ''}
+              onClick={() => setPage('materials')}
+            >
+              <span>▤</span> Материалы
+            </button>
           </nav>
 
           <div className="sidebar-note">
-            <span>✳</span>
-            <p>Не нужно разбираться во всём сразу. Двигайся по одному шагу.</p>
+            <button type="button" onClick={() => setPage('materials')}>Открыть инструкции и материалы ↗</button>
           </div>
         </div>
 
@@ -332,35 +502,123 @@ function App() {
             </section>
           )}
 
+          {plan && page === 'materials' && (
+            <section className="inner-page materials-page" aria-labelledby="materials-title">
+              <p className="eyebrow">Материалы / {plan.role}</p>
+              <h1 id="materials-title">Материалы<span className="purple-dot">.</span></h1>
+              <p className="materials-intro">Здесь отдельно собраны демо-инструкции для назначенного маршрута и публичные ссылки из кейса.</p>
+              {materialsLoading && <p role="status">Загружаем материалы…</p>}
+              {materialsError && !materialsLoading && (
+                <div className="error-banner" role="alert">
+                  <span>{materialsError}</span>
+                  <button type="button" className="text-button" onClick={() => setMaterialsAttempt((attempt) => attempt + 1)}>Повторить ↗</button>
+                </div>
+              )}
+              {!materialsLoading && !materialsError && materialsKey === planKey && materials && (() => {
+                const instructions = materials.filter((item) => !item.url)
+                const references = materials.filter((item) => item.url)
+                const selected = instructions.find((item) => item.id === selectedMaterialId) ?? instructions[0]
+                return (
+                  <>
+                    <section className="materials-section" aria-labelledby="instructions-heading">
+                      <h2 id="instructions-heading">Инструкции демо-маршрута</h2>
+                      <p>Материалы для выбранной роли и плана. Выбери документ, чтобы прочитать его целиком.</p>
+                      {instructions.length ? (
+                        <div className="materials-layout">
+                          <nav className="materials-list" aria-label="Документы демо-маршрута">
+                            {instructions.map((material) => (
+                              <button key={material.id} type="button"
+                                className={material.id === selected.id ? 'selected' : ''}
+                                aria-current={material.id === selected.id ? 'true' : undefined}
+                                onClick={() => setSelectedMaterialId(material.id)}>
+                                {material.title}
+                              </button>
+                            ))}
+                          </nav>
+                          <article className="material-detail" aria-labelledby="material-title">
+                            <h3 id="material-title">{selected.title}</h3>
+                            <div className="material-content">{selected.content}</div>
+                          </article>
+                        </div>
+                      ) : <p role="status">Для твоего маршрута пока нет инструкций.</p>}
+                    </section>
+                    {references.length > 0 && (
+                      <section className="materials-section public-references" aria-labelledby="references-heading">
+                        <h2 id="references-heading">Открытые источники из кейса</h2>
+                        <p>Публичные ссылки для самостоятельного изучения. Они не являются проверенными внутренними инструкциями, не входят в материалы ответов AI-buddy и не заменяют назначенный план.</p>
+                        <ul className="references-grid">
+                          {references.map((material) => (
+                            <li key={material.id}>
+                              <a href={material.url} target="_blank" rel="noopener noreferrer"
+                                aria-label={`${material.title} — внешний сайт, откроется в новой вкладке`}>
+                                <span>{material.title}</span><span aria-hidden="true">↗</span>
+                              </a>
+                              <p>{material.content}</p>
+                              <small>Внешний сайт · новая вкладка</small>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+                  </>
+                )
+              })()}
+            </section>
+          )}
+
           {plan && page === 'buddy' && (
-            <section className="inner-page">
+            <section className="inner-page buddy-page">
               <p className="eyebrow">03 / Помощник</p>
-              <h1>
-                Спроси AI-buddy<span className="purple-dot">.</span>
-              </h1>
+              <h1>Спроси AI-buddy<span className="purple-dot">.</span></h1>
+              <p className="buddy-context">Твой маршрут: {plan.role}, команда «{plan.team}». Ответы основаны на доступных помощнику материалах.</p>
 
-              <div className="request-card">
-                <span className="helper-icon">✳</span>
-                <h2>Что делать сейчас?</h2>
-                <p>
-                  {request?.status === 'pending'
-                    ? `Заявка ${request.id} на «${request.resource}» ожидает согласования. Её статус можно посмотреть в разделе «Моя заявка».`
-                    : currentStep
-                      ? `Сейчас: ${currentStep.title}. ${currentStep.detail}`
-                      : 'Все шаги плана выполнены.'}
-                </p>
-
-                <button
-                  className="action-button"
-                  onClick={() => setPage('plan')}
-                >
-                  Открыть план ↗
-                </button>
+              <div className="buddy-conversation" role="log" aria-label="Разговор с AI-buddy" aria-live="polite" aria-relevant="additions text">
+                <article className="buddy-message buddy-intro">
+                  <span className="buddy-speaker">Начало разговора</span>
+                  <p>Привет! Спроси о первом дне, команде или следующем шаге. Я подскажу, где искать ответ.</p>
+                </article>
+                {turns.map((turn, index) => (
+                  <div className="buddy-turn" key={index}>
+                    <article className="buddy-message buddy-user">
+                      <span className="buddy-speaker">Ты</span>
+                      <p>{turn.question}</p>
+                    </article>
+                    {turn.answer !== undefined && (
+                      <article className="buddy-message buddy-answer">
+                        <span className="buddy-speaker">{turn.model ? 'AI-buddy' : 'Системная подсказка'}</span>
+                        {renderAnswer(turn)}
+                      </article>
+                    )}
+                    {turn.error && (
+                      <div className="buddy-error" role="alert">
+                        <p>{turn.error}</p>
+                        <button type="button" className="text-button" disabled={answering} onClick={() => void askBuddy(turn.question, index)}>Повторить вопрос ↗</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {answering && <p className="buddy-loading" role="status">AI-buddy готовит ответ…</p>}
               </div>
 
-              <p className="page-footnote">
-                Подсказка составлена по текущему шагу назначенного плана.
-              </p>
+              <form className="buddy-form" onSubmit={(event) => {
+                event.preventDefault()
+                void askBuddy(question)
+              }}>
+                <label htmlFor="buddy-question">Твой вопрос</label>
+                <div className="buddy-compose">
+                  <textarea id="buddy-question" value={question} onChange={(event) => setQuestion(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                        event.preventDefault()
+                        event.currentTarget.form?.requestSubmit()
+                      }
+                    }}
+                    placeholder="Например: как получить доступ к рабочим инструментам?"
+                    rows={2} maxLength={500} disabled={answering} />
+                  <button className="action-button" type="submit" disabled={answering || !question.trim()}>Отправить ↗</button>
+                </div>
+                <p className="buddy-hint">Enter — отправить, Shift + Enter — новая строка. Не вводи реальные персональные данные.</p>
+              </form>
             </section>
           )}
         </main>

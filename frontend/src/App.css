@@ -69,6 +69,72 @@
 .request-badge.approved { background: #b6edbb; }
 .helper-icon { display: inline-grid; place-items: center; width: 36px; height: 36px; background: #9d67ef; color: white; font-size: 25px; }
 .page-footnote { max-width: 700px; font-size: 12px; color: #666; }
+.buddy-page { max-width: 850px; }
+.buddy-page h1 { margin-bottom: 18px; }
+.buddy-context { max-width: 600px; margin: 0 0 32px; line-height: 1.5; }
+.buddy-conversation { display: grid; gap: 20px; padding: 24px 0; border-top: 1px solid #222; }
+.buddy-turn { display: grid; gap: 14px; }
+.buddy-message { max-width: 690px; padding: 18px 22px; border: 1px solid #222; background: #f9f8f6; }
+.buddy-message p { margin: 10px 0 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.buddy-answer code { padding: .06em .22em; background: #e1d2f2; font-size: .9em; }
+.buddy-intro { background: #e1d2f2; }
+.buddy-user { justify-self: end; width: min(100%, 610px); background: #dff4e1; }
+.buddy-answer { box-shadow: 5px 5px 0 #e1d2f2; }
+.buddy-speaker { font-size: 12px; font-weight: 900; }
+.inline-source { display: inline-flex; align-items: baseline; gap: .35em; max-width: 100%; margin: 0 .1em; padding: .12em .6em; border: 1px solid #222; border-radius: 999px; background: #e1d2f2; color: #17101f; font: inherit; font-size: .82em; font-weight: 800; line-height: 1.35; vertical-align: baseline; text-align: left; cursor: pointer; transition: background-color .15s ease; }
+.inline-source span:first-child { overflow-wrap: anywhere; }
+.inline-source:hover:not(:disabled) { background: #62db69; }
+.inline-source:disabled { opacity: .55; cursor: default; }
+.buddy-sources { margin-top: 18px; padding-top: 12px; border-top: 1px solid #999; font-size: 13px; }
+.source-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.buddy-error { max-width: 690px; padding: 16px 20px; border-left: 4px solid #c73b49; background: #ffe2e2; }
+.buddy-error p { margin: 0; line-height: 1.5; }
+.buddy-error .text-button { margin-top: 12px; }
+.buddy-loading { margin: 0; font-weight: 700; }
+.buddy-form { margin-top: 12px; padding-top: 22px; border-top: 1px solid #222; }
+.buddy-form label { display: block; margin-bottom: 10px; font-weight: 900; }
+.buddy-compose { display: flex; align-items: stretch; gap: 10px; }
+.buddy-compose textarea { flex: 1; min-width: 0; min-height: 76px; padding: 13px; border: 1px solid #222; border-radius: 0; background: #fff; color: #141414; font: inherit; line-height: 1.4; resize: vertical; }
+.buddy-compose .action-button { margin: 0; align-self: flex-end; min-height: 48px; }
+.buddy-hint { margin: 8px 0 0; color: #555; font-size: 12px; }
+.buddy-page :is(button, textarea):focus-visible { outline: 3px solid #7542c3; outline-offset: 3px; }
+.buddy-page button:disabled { cursor: not-allowed; opacity: .55; }
+.materials-page { max-width: 1020px; }
+.materials-page h1 { margin-bottom: 18px; }
+.materials-intro { max-width: 620px; margin: 0 0 34px; line-height: 1.5; }
+.materials-layout { display: grid; grid-template-columns: minmax(190px, 260px) minmax(0, 1fr); gap: 26px; align-items: start; }
+.materials-list { display: grid; border-top: 1px solid #222; }
+.materials-list button { min-height: 54px; padding: 12px 14px; border: 0; border-bottom: 1px solid #222; background: transparent; text-align: left; font: inherit; font-weight: 800; overflow-wrap: anywhere; }
+.materials-list button.selected { background: #62db69; }
+.material-detail { min-width: 0; padding: 24px 28px 34px; border: 1px solid #222; background: #f9f8f6; }
+.material-detail h3 { margin: 0 0 22px; font-size: clamp(26px, 3vw, 38px); line-height: 1.1; letter-spacing: -1px; overflow-wrap: anywhere; }
+.material-content { max-width: 75ch; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.sidebar-note button { border: 0; border-bottom: 1px solid currentColor; padding: 0; background: transparent; font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
+.sidebar-note button { line-height: 1.5; }
+.materials-page button:focus-visible, .sidebar-note button:focus-visible { outline: 3px solid #7542c3; outline-offset: 3px; }
+.materials-section + .materials-section { margin-top: 56px; }
+.materials-section > h2 { margin: 0 0 10px; font-size: clamp(25px, 3vw, 34px); letter-spacing: -1px; }
+.materials-section > p { max-width: 72ch; margin: 0 0 24px; line-height: 1.5; }
+.references-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.references-grid li { display: flex; flex-direction: column; min-width: 0; padding: 20px; border: 1px solid #222; background: #f9f8f6; }
+.references-grid a { display: flex; justify-content: space-between; gap: 12px; color: #141414; font-size: 18px; font-weight: 900; line-height: 1.25; overflow-wrap: anywhere; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.references-grid a:hover { color: #6531a8; }
+.references-grid a:focus-visible { outline: 3px solid #7542c3; outline-offset: 4px; }
+.references-grid li p { margin: 12px 0 16px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.references-grid small { margin-top: auto; color: #555; font-size: 12px; font-weight: 700; }
+@media (max-width: 680px) {
+  .materials-page h1 { font-size: 46px; letter-spacing: -3px; }
+  .materials-layout { grid-template-columns: 1fr; gap: 20px; }
+  .material-detail { padding: 20px; }
+}
+@media (max-width: 680px) {
+  .buddy-page h1 { font-size: 46px; letter-spacing: -3px; }
+  .buddy-compose { flex-direction: column; }
+  .buddy-compose .action-button { align-self: stretch; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .buddy-page *, .buddy-page *::before, .buddy-page *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
 
 @media (max-width: 900px) {
   .sidebar { width: 190px; padding-left: 15px; }
@@ -84,8 +150,8 @@
   .sidebar { width: 100%; border-right: 0; border-bottom: 1px solid #222; padding: 15px; }
   .sidebar-middle { margin-top: 18px; }
   .sidebar-caption, .sidebar-note, .profile { display: none; }
-  .navigation { display: flex; overflow-x: auto; }
-  .navigation button { flex: none; }
+  .navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .navigation button { min-width: 0; }
   .topbar { height: 55px; }
   .content { padding: 34px 20px 60px; }
   .hero { min-height: 0; }

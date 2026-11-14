@@ -1,0 +1,103 @@
+[
+  {
+    "id": "demo-plan-guide",
+    "title": "Как читать назначенный план",
+    "content": "Текущий шаг и статус каждого шага смотри в назначенном плане. Пока шаг ожидает согласования, не считай его завершённым и не переходи к заблокированному шагу. Если дальнейшие действия не описаны, уточни их у наставника.",
+    "positions": ["backend", "frontend", "analyst"],
+    "topics": ["plan"],
+    "aliases": ["следующ", "дальше", "сейчас", "шаг", "задач", "план", "перв", "начат", "наставник", "делать"],
+    "directive": "follow-current-plan"
+  },
+  {
+    "id": "demo-access-policy",
+    "title": "Тестовые заявки на доступ",
+    "content": "В этом синтетическом сценарии стажёр сначала создаёт заявку на ресурс своего назначенного шага через кнопку «Запросить доступ» в плане. Предварительное подтверждение наставника для создания заявки не требуется. После создания заявка ожидает согласования наставника; стажёр не может одобрить её сам. Шаг считается завершённым только после одобрения заявки. Если ресурс или способ доступа не указан в назначенном плане, уточни детали у наставника.",
+    "positions": ["backend", "frontend", "analyst"],
+    "topics": ["access"],
+    "aliases": ["доступ", "заявк", "согласован", "разрешен", "стенд", "каталог метрик", "access"],
+    "directive": "mentor-approves-access"
+  },
+  {
+    "id": "demo-backend-workspace",
+    "title": "Тестовая памятка: backend",
+    "content": "Backend-стажёр знакомится с сервисами команды платформы, затем запускает API локально и проверяет HTTP-маршруты. Для тестового окружения используй только ресурс, указанный в назначенном плане. Конкретные команды запуска в этих материалах не приведены; запроси их у наставника.",
+    "positions": ["backend"],
+    "topics": ["workspace"],
+    "aliases": ["инструмент", "настро", "рабоч", "локальн", "сборк", "установ", "запуск", "api", "http"],
+    "directive": "follow-assigned-workspace"
+  },
+  {
+    "id": "demo-frontend-workspace",
+    "title": "Тестовая памятка: frontend",
+    "content": "Frontend-стажёр изучает библиотеку компонентов, запускает интерфейс локально и проверяет навигацию с клавиатуры. Для проверки изменений используй только стенд интерфейсов из назначенного плана. Конкретные команды сборки в этих материалах не приведены; запроси их у наставника.",
+    "positions": ["frontend"],
+    "topics": ["workspace"],
+    "aliases": ["инструмент", "настро", "рабоч", "локальн", "сборк", "установ", "запуск", "интерфейс", "компонент"],
+    "directive": "follow-assigned-workspace"
+  },
+  {
+    "id": "demo-analyst-workspace",
+    "title": "Тестовая памятка: аналитик",
+    "content": "Системный аналитик изучает путь заявки, определения показателей и критерии приёмки. Для проверки гипотез используй только каталог метрик из назначенного плана. Конкретные запросы к данным в этих материалах не приведены; запроси их у наставника.",
+    "positions": ["analyst"],
+    "topics": ["workspace"],
+    "aliases": ["инструмент", "настро", "рабоч", "локальн", "данн", "метрик", "гипотез", "аналитик"],
+    "directive": "follow-assigned-workspace"
+  },
+  {
+    "id": "public-trainee-checklist",
+    "title": "Чек-лист стажёра и наставника",
+    "content": "Публичная таблица с чек-листами для стажёра и наставника из материалов кейса; не является назначенным планом в этом демо.",
+    "url": "https://docs.google.com/spreadsheets/d/1qKFqOzfSZ2jEz57jBSmq7rukDXi_tRfWohgemViceV0/edit?usp=sharing",
+    "positions": ["backend", "frontend", "analyst"]
+  },
+  {
+    "id": "public-avito-playbook",
+    "title": "AvitoTech Playbook",
+    "content": "Публичный репозиторий AvitoTech Playbook на GitHub.",
+    "url": "https://github.com/avito-tech/playbook",
+    "positions": ["backend", "frontend", "analyst"]
+  },
+  {
+    "id": "public-avito-habr",
+    "title": "Блог Авито на Хабре",
+    "content": "Публичные статьи компании Авито на Хабре.",
+    "url": "https://habr.com/ru/companies/avito/articles/",
+    "positions": ["backend", "frontend", "analyst"]
+  },
+  {
+    "id": "public-avito-tech",
+    "title": "Сайт AvitoTech",
+    "content": "Публичный сайт технологической команды Авито.",
+    "url": "https://avito.tech/",
+    "positions": ["backend", "frontend", "analyst"]
+  },
+  {
+    "id": "public-tech-internship",
+    "title": "AvitoTech Internship",
+    "content": "Публичный репозиторий AvitoTech о стажировках на GitHub.",
+    "url": "https://github.com/avito-tech/tech-internship",
+    "positions": ["backend", "frontend", "analyst"]
+  },
+  {
+    "id": "public-design-system-article",
+    "title": "Статья о дизайн-системе Авито",
+    "content": "Публичная статья Авито о дизайн-системе на Хабре.",
+    "url": "https://habr.com/ru/companies/avito/articles/543450/",
+    "positions": ["backend", "frontend", "analyst"]
+  },
+  {
+    "id": "public-internship-landing",
+    "title": "Стажировки в Авито",
+    "content": "Публичная страница стажировок Авито.",
+    "url": "https://start.avito.ru/internships",
+    "positions": ["backend", "frontend", "analyst"]
+  },
+  {
+    "id": "public-design-system-video",
+    "title": "Видео о дизайн-системе Авито",
+    "content": "Публичное видео о дизайн-системе Авито на Rutube.",
+    "url": "https://rutube.ru/video/6a203a00a9ef7cdd25d811a01cacd61b/",
+    "positions": ["backend", "frontend", "analyst"]
+  }
+]

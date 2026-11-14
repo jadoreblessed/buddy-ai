@@ -41,8 +41,23 @@ type Plan struct {
 }
 
 type App struct {
-	source  OnboardingSource
-	tickets *TicketClient
+	source    OnboardingSource
+	tickets   *TicketClient
+	catalog   *MaterialCatalog
+	assistant *Assistant
+}
+
+func (a *App) getMaterials(w http.ResponseWriter, r *http.Request) {
+	plan, err := a.GetAssignedPlan(r.Context(), demoInternID)
+	if err != nil {
+		writePlanError(w, err)
+		return
+	}
+	if a.catalog == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Каталог материалов не настроен"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]Material{"materials": a.catalog.visible(plan)})
 }
 
 func (a *App) getPlan(w http.ResponseWriter, r *http.Request) {
