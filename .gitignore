@@ -1,6 +1,8 @@
 frontend/node_modules/
 frontend/dist/
+frontend/coverage/
 backend/data/
 .env
 coverage.out
 mock-service/data/
+__pycache__/

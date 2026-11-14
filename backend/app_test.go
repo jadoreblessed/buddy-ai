@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -126,6 +128,276 @@ func decodePlan(t *testing.T, response *httptest.ResponseRecorder) Plan {
 		t.Fatal(err)
 	}
 	return plan
+}
+
+func decodeCurrentRequest(t *testing.T, response *httptest.ResponseRecorder) *Request {
+	t.Helper()
+	requireStatus(t, response, http.StatusOK)
+	var payload struct {
+		Request *Request `json:"request"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	return payload.Request
+}
+
+func requireAPIError(t *testing.T, response *httptest.ResponseRecorder, status int, message string) {
+	t.Helper()
+	requireStatus(t, response, status)
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	var actual string
+	if len(payload) != 1 || json.Unmarshal(payload["error"], &actual) != nil || actual != message {
+		t.Fatalf("ожидалась только ошибка %q, получено %s", message, response.Body.String())
+	}
+}
+
+func TestCurrentRequestReflectsTicketLifecycleAndAssignedPlan(t *testing.T) {
+	tickets := ticketTestServer(t)
+	defer tickets.Close()
+	backend, analyst := samplePlans()
+	source := &mutableSource{plan: backend}
+	handler := newHandler(&App{source: source, tickets: NewTicketClient(tickets.URL)})
+
+	if request := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", "")); request != nil {
+		t.Fatalf("до создания заявки ожидалось null, получено %+v", request)
+	}
+	requireStatus(t, send(handler, "POST", "/api/requests", demoInternID, ""), http.StatusCreated)
+	pending := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", ""))
+	if pending == nil || pending.ID != "REQ-backend-v1" || pending.PlanID != backend.PlanID ||
+		pending.StepID != "backend-access" || pending.Resource != "backend-staging" || pending.Status != "pending" {
+		t.Fatalf("текущая заявка не отражает созданную: %+v", pending)
+	}
+	again := send(handler, "POST", "/api/requests", demoInternID, "")
+	requireStatus(t, again, http.StatusOK)
+	var reused struct {
+		Request *Request `json:"request"`
+	}
+	if err := json.Unmarshal(again.Body.Bytes(), &reused); err != nil {
+		t.Fatal(err)
+	}
+	if reused.Request == nil || reused.Request.ID != pending.ID || reused.Request.Status != "pending" {
+		t.Fatalf("повторное создание должно вернуть существующую заявку: %s", again.Body.String())
+	}
+
+	requireStatus(t, send(handler, "POST", "/api/requests/"+pending.ID+"/approve", "mentor-1", ""), http.StatusOK)
+	approved := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", ""))
+	if approved == nil || approved.ID != pending.ID || approved.Status != "approved" {
+		t.Fatalf("текущая заявка не отражает согласование: %+v", approved)
+	}
+	source.plan = analyst
+	if request := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", "")); request != nil {
+		t.Fatalf("заявка прежнего плана не должна отображаться в новом: %+v", request)
+	}
+}
+
+func TestRequestRoutesRejectUnauthorizedAndNonAccessStepsWithoutMutation(t *testing.T) {
+	tickets := ticketTestServer(t)
+	defer tickets.Close()
+	backend, _ := samplePlans()
+	source := &mutableSource{plan: backend}
+	handler := newHandler(&App{source: source, tickets: NewTicketClient(tickets.URL)})
+
+	for _, user := range []string{"", "mentor-1"} {
+		requireAPIError(t, send(handler, "POST", "/api/requests", user, ""), http.StatusForbidden,
+			"Заявку может создать только стажёр")
+	}
+	if request := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", "")); request != nil {
+		t.Fatalf("неавторизованный вызов создал заявку: %+v", request)
+	}
+	requireStatus(t, send(handler, "POST", "/api/requests", demoInternID, ""), http.StatusCreated)
+	for _, user := range []string{"", demoInternID} {
+		requireAPIError(t, send(handler, "POST", "/api/requests/REQ-backend-v1/approve", user, ""),
+			http.StatusForbidden, "Согласовать заявку может только наставник")
+	}
+	if request := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", "")); request == nil || request.Status != "pending" {
+		t.Fatalf("неавторизованный вызов изменил заявку: %+v", request)
+	}
+
+	source.plan.PlanID = "backend-next-v2"
+	source.plan.Steps[0].Completed = false
+	requireAPIError(t, send(handler, "POST", "/api/requests", demoInternID, ""), http.StatusConflict,
+		"На текущем шаге заявка на доступ не требуется")
+	if request := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", "")); request != nil {
+		t.Fatalf("недоступный шаг создал заявку: %+v", request)
+	}
+}
+
+func TestRequestReadAndCreateFailClosedForUnavailableOrStaleAssignments(t *testing.T) {
+	backend, _ := samplePlans()
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		body   string
+	}{
+		{"missing intern", ErrInternNotFound, http.StatusNotFound, "Стажёр не найден"},
+		{"source unavailable", errors.New("private source outage"), http.StatusBadGateway,
+			"Не удалось загрузить назначенный план или статус заявки"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := &mutableSource{plan: backend, err: tc.err}
+			handler := newHandler(&App{source: source})
+			requireAPIError(t, send(handler, "GET", "/api/requests/current", "", ""), tc.status, tc.body)
+			requireAPIError(t, send(handler, "POST", "/api/requests", demoInternID, ""), tc.status, tc.body)
+		})
+	}
+
+	for _, tc := range []struct {
+		name    string
+		current func(http.ResponseWriter)
+	}{
+		{"ticket service unavailable", func(w http.ResponseWriter) {
+			http.Error(w, "internal ticket outage", http.StatusServiceUnavailable)
+		}},
+		{"stale ticket belongs to previous plan", func(w http.ResponseWriter) {
+			writeJSON(w, http.StatusOK, map[string]*Request{"request": {
+				ID: "REQ-old", InternID: demoInternID, PlanID: "old-plan",
+				StepID: "backend-access", Resource: "backend-staging", Status: "pending",
+			}})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var creates atomic.Int32
+			tickets := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/requests/current" {
+					tc.current(w)
+					return
+				}
+				if r.Method == http.MethodPost && r.URL.Path == "/requests" {
+					creates.Add(1)
+				}
+				t.Errorf("неожиданный вызов сервиса заявок: %s %s", r.Method, r.URL)
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer tickets.Close()
+			handler := newHandler(&App{source: &mutableSource{plan: backend}, tickets: NewTicketClient(tickets.URL)})
+			for _, methodAndPath := range [][2]string{
+				{"GET", "/api/requests/current"},
+				{"POST", "/api/requests"},
+			} {
+				requireAPIError(t, send(handler, methodAndPath[0], methodAndPath[1], demoInternID, ""),
+					http.StatusBadGateway, "Не удалось загрузить назначенный план или статус заявки")
+			}
+			if count := creates.Load(); count != 0 {
+				t.Fatalf("при неверном статусе заявки нельзя создавать новую: %d вызовов", count)
+			}
+		})
+	}
+}
+
+func TestTicketActionErrorsDoNotExposeUpstreamDetailsOrInventRequests(t *testing.T) {
+	backend, _ := samplePlans()
+	for _, tc := range []struct {
+		name     string
+		action   string
+		upstream int
+		payload  string
+		want     int
+		message  string
+	}{
+		{"create unavailable", "create", http.StatusServiceUnavailable, `{"error":"internal ticket outage"}`,
+			http.StatusBadGateway, "Не удалось выполнить действие через сервис заявок"},
+		{"create missing request", "create", http.StatusOK, `{"request":null}`,
+			http.StatusBadGateway, "Не удалось выполнить действие через сервис заявок"},
+		{"approve unknown ticket", "approve", http.StatusNotFound, `{"error":"private ticket ID"}`,
+			http.StatusNotFound, "Заявка не найдена"},
+		{"approve unavailable", "approve", http.StatusServiceUnavailable, `{"error":"internal ticket outage"}`,
+			http.StatusBadGateway, "Не удалось выполнить действие через сервис заявок"},
+		{"approve missing request", "approve", http.StatusOK, `{"request":null}`,
+			http.StatusBadGateway, "Не удалось выполнить действие через сервис заявок"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var actions atomic.Int32
+			tickets := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/requests/current":
+					writeJSON(w, http.StatusOK, map[string]*Request{"request": nil})
+				case r.Method == http.MethodPost &&
+					((tc.action == "create" && r.URL.Path == "/requests") ||
+						(tc.action == "approve" && r.URL.Path == "/requests/REQ-unknown/approve")):
+					actions.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(tc.upstream)
+					_, _ = w.Write([]byte(tc.payload))
+				default:
+					t.Errorf("неожиданный вызов сервиса заявок: %s %s", r.Method, r.URL)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			defer tickets.Close()
+			handler := newHandler(&App{source: &mutableSource{plan: backend}, tickets: NewTicketClient(tickets.URL)})
+			path, user := "/api/requests", demoInternID
+			if tc.action == "approve" {
+				path, user = "/api/requests/REQ-unknown/approve", "mentor-1"
+			}
+			requireAPIError(t, send(handler, "POST", path, user, ""), tc.want, tc.message)
+			if count := actions.Load(); count != 1 {
+				t.Fatalf("ожидался один вызов сервиса заявок, получено %d", count)
+			}
+			if request := decodeCurrentRequest(t, send(handler, "GET", "/api/requests/current", "", "")); request != nil {
+				t.Fatalf("неуспешное действие не должно создавать заявку: %+v", request)
+			}
+		})
+	}
+}
+
+func TestBuddyRejectsMalformedQuestionsBeforeCallingProvider(t *testing.T) {
+	backend, _ := samplePlans()
+	model := &fakeModel{output: "Не должен вызываться"}
+	handler := newHandler(&App{
+		source: &mutableSource{plan: backend}, catalog: testCatalog(t),
+		assistant: &Assistant{model: model, modelName: "test-model"},
+	})
+	for _, tc := range []struct {
+		name, body, message string
+	}{
+		{"invalid JSON", `{"question":`, "Передай вопрос в формате JSON"},
+		{"unknown field", `{"question":"Доступ?","admin":true}`, "Передай вопрос в формате JSON"},
+		{"multiple JSON objects", `{"question":"Доступ?"} {"question":"Другое"}`, "Некорректный формат вопроса"},
+		{"empty question", `{"question":"  "}`, "Вопрос должен содержать от 1 до 500 символов"},
+		{"over 500 characters", `{"question":"` + strings.Repeat("а", 501) + `"}`, "Вопрос должен содержать от 1 до 500 символов"},
+		{"oversized payload", `{"question":"` + strings.Repeat("a", 4100) + `"}`, "Передай вопрос в формате JSON"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/buddy/answer", strings.NewReader(tc.body))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			requireAPIError(t, response, http.StatusBadRequest, tc.message)
+			if model.calls != 0 {
+				t.Fatalf("некорректный вопрос достиг провайдера: %d вызовов", model.calls)
+			}
+		})
+	}
+}
+
+func TestBuddyProviderAndPlanFailuresReturnOnlyPublicErrors(t *testing.T) {
+	tickets := ticketTestServer(t)
+	defer tickets.Close()
+	backend, _ := samplePlans()
+	source := &mutableSource{plan: backend}
+	model := &fakeModel{err: ErrAIRateLimited}
+	handler := newHandler(&App{
+		source: source, tickets: NewTicketClient(tickets.URL), catalog: testCatalog(t),
+		assistant: &Assistant{model: model, modelName: "test-model"},
+	})
+	requireAPIError(t, postBuddy(handler, "Какие доступы нужны?"), http.StatusServiceUnavailable,
+		"Лимит запросов к модели исчерпан. Попробуй позже.")
+	model.err = errors.New("private provider credentials")
+	requireAPIError(t, postBuddy(handler, "Какие доступы нужны?"), http.StatusBadGateway,
+		"Модель недоступна. Попробуй позже.")
+	if model.calls != 2 {
+		t.Fatalf("валидный вопрос не дошёл до провайдера: %d вызовов", model.calls)
+	}
+	source.err = ErrInternNotFound
+	requireAPIError(t, postBuddy(handler, "Какие доступы нужны?"), http.StatusNotFound, "Стажёр не найден")
+	if model.calls != 2 {
+		t.Fatalf("при ошибке назначенного плана провайдер не должен вызываться: %d", model.calls)
+	}
 }
 
 func TestAssignedPlanChangesWithSourceAndTicket(t *testing.T) {

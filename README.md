@@ -77,8 +77,15 @@ curl -X PUT http://localhost:8081/demo/interns/intern-1/position \
 ## Проверки
 
 ```bash
-go test ./backend ./mock-service
-cd frontend && npm run build
+go test ./backend ./mock-service -coverprofile=coverage.out -count=1 -timeout=60s
+cd frontend
+npm ci
+npm run test:coverage
+npm run build
+cd ..
+python3 coverage_report.py coverage.out frontend/coverage/coverage-summary.json
 ```
 
 Тесты проверяют смену позиции, сохранение в mock после перезапуска, изоляцию заявок по планам, переход `pending → approved`, ограничения демо-ролей, ошибку недоступного источника, область видимости материалов для трёх позиций, актуальность шага и заявки, отказ при неизвестной теме или конфликте инструкций, достоверность выдержок и идентификаторов источников. Отдельно проверь ответы выбранной реальной модели на вопрос о доступе каждой позиции и о следующем шаге: автоматические тесты не доказывают семантическую точность произвольного текста модели. MCP пока не подключён.
+
+Результат измерения, версии инструментов, знаменатель покрытия и различие между Go-операторами и исполняемыми строками: [`COVERAGE.md`](COVERAGE.md). `app_test.go` — файл тестов и в знаменатель не входит; измеряется прикладной `backend/app.go`.
