@@ -42,6 +42,7 @@ type BuddyTurn = {
   answer?: string
   sources?: BuddySource[]
   model?: string
+  toolCall?: string
   error?: string
 }
 
@@ -248,13 +249,14 @@ function App() {
         sources?: BuddySource[]
         error?: string
         model?: string
+        toolCall?: string
       }
       if (!response.ok) throw new Error(data.error || `Не удалось получить ответ (${response.status})`)
       if (typeof data.answer !== 'string' || !Array.isArray(data.sources)) {
         throw new Error('Сервер вернул неполный ответ. Попробуй ещё раз.')
       }
       setTurns((previous) => previous.map((turn, position) =>
-        position === index ? { question: trimmed, answer: data.answer, sources: data.sources, model: data.model } : turn,
+        position === index ? { question: trimmed, answer: data.answer, sources: data.sources, model: data.model, toolCall: data.toolCall } : turn,
       ))
     } catch (cause) {
       const message = cause instanceof Error && cause.message !== 'Failed to fetch' && !(cause instanceof SyntaxError)
@@ -585,7 +587,7 @@ function App() {
                     </article>
                     {turn.answer !== undefined && (
                       <article className="buddy-message buddy-answer">
-                        <span className="buddy-speaker">{turn.model ? 'AI-buddy' : 'Системная подсказка'}</span>
+                        <span className="buddy-speaker">{turn.toolCall === 'get_request_status' ? 'MCP · статус заявки' : turn.model ? 'AI-buddy' : 'Системная подсказка'}</span>
                         {renderAnswer(turn)}
                       </article>
                     )}

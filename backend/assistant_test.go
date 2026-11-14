@@ -131,6 +131,20 @@ func TestBuddyUnknownQuestionDoesNotInventAnswerOrCallModel(t *testing.T) {
 	}
 }
 
+func TestLifecycleClaimsNeedCurrentPlanAndCorrectStatus(t *testing.T) {
+	plan, _ := samplePlans()
+	for _, claim := range []string{
+		"Заявка уже согласована. [demo-access-policy] [assigned-plan:" + plan.PlanID + "]",
+		"Заявка ожидает согласования. [demo-access-policy] [assigned-plan:" + plan.PlanID + "]",
+		"Заявка не создана. [demo-access-policy]",
+	} {
+		if lifecycleClaimsValid(claim, Plan{PlanID:plan.PlanID}) { t.Fatalf("unverified claim accepted: %s", claim) }
+	}
+	if !lifecycleClaimsValid("Заявка не создана. [assigned-plan:"+plan.PlanID+"]", Plan{PlanID:plan.PlanID}) {
+		t.Fatal("correct current status rejected")
+	}
+}
+
 func TestBuddyProviderErrorsAndValidation(t *testing.T) {
 	tickets := ticketTestServer(t)
 	defer tickets.Close()

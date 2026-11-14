@@ -39,6 +39,25 @@ func (a *App) answerBuddy(w http.ResponseWriter, r *http.Request) {
 		writePlanError(w, err)
 		return
 	}
+	if asksRequestStatus(input.Question) && a.statusTool != nil {
+		for _, step := range plan.Steps {
+			if step.ActionType != "request_access" { continue }
+			status, err := a.statusTool.GetStatus(r.Context(), plan, step)
+			if err != nil {
+				log.Printf("MCP status tool failed: %v", err)
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "Не удалось проверить статус заявки. Попробуй позже."})
+				return
+			}
+			// A new assignment or approval can race this read; refuse inconsistent snapshots.
+			if status.Status == "not_created" && plan.Request != nil ||
+				status.Status != "not_created" && (plan.Request == nil || plan.Request.ID != status.RequestID || plan.Request.Status != status.Status) {
+				writeJSON(w, http.StatusConflict, map[string]string{"error": "Статус изменился. Обнови план и повтори вопрос."})
+				return
+			}
+			writeJSON(w, http.StatusOK, statusAnswer(plan, step, status))
+			return
+		}
+	}
 	answer, err := a.assistant.Answer(r.Context(), plan, input.Question, a.catalog)
 	if err != nil {
 		switch {

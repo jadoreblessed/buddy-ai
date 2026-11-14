@@ -127,7 +127,7 @@ func main() {
 	}
 	addr := os.Getenv("MOCK_SERVICE_ADDR")
 	if addr == "" {
-		addr = ":8081"
+		addr = "127.0.0.1:8081"
 	}
 	log.Printf("Сервис планов и заявок запущен на %s", addr)
 	log.Fatal(http.ListenAndServe(addr, service.handler()))
@@ -143,6 +143,7 @@ func (s *Service) handler() http.Handler {
 	mux.HandleFunc("GET /requests/current", s.getRequest)
 	mux.HandleFunc("POST /requests", s.createRequest)
 	mux.HandleFunc("POST /requests/{id}/approve", s.approveRequest)
+	mux.HandleFunc("POST /mcp", s.handleMCP)
 	return mux
 }
 
