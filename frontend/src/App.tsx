@@ -362,7 +362,6 @@ function App() {
             <>
               <section className="hero">
                 <div className="hero-copy">
-                  <p className="eyebrow">День 01 / Адаптация</p>
                   <h1>
                     <mark>Первый день.</mark>
                     <br />
