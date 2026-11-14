@@ -45,6 +45,7 @@ type App struct {
 	tickets   *TicketClient
 	catalog   *MaterialCatalog
 	assistant *Assistant
+	statusTool *MCPStatusClient
 }
 
 func (a *App) getMaterials(w http.ResponseWriter, r *http.Request) {

@@ -17,6 +17,7 @@ type BuddyAnswer struct {
 	Answer  string         `json:"answer"`
 	Sources []AnswerSource `json:"sources"`
 	Model   string         `json:"model"`
+	ToolCall string        `json:"toolCall,omitempty"`
 }
 
 type TextGenerator interface {
@@ -51,6 +52,21 @@ func citedSourcesValid(answer string, sources []AnswerSource) bool {
 			return false
 		}
 	}
+	return true
+}
+
+// Explicit lifecycle claims need the current plan citation and must agree with it.
+// This is deliberately narrow: a citation alone cannot prove arbitrary model prose.
+func lifecycleClaimsValid(answer string, plan Plan) bool {
+	text := strings.ToLower(answer)
+	approved := strings.Contains(text, "заявк") && (strings.Contains(text, "согласован") || strings.Contains(text, "одобрен"))
+	pending := strings.Contains(text, "заявк") && strings.Contains(text, "ожидает согласован")
+	notCreated := strings.Contains(text, "заявк") && (strings.Contains(text, "не создан") || strings.Contains(text, "не отправлен"))
+	if !approved && !pending && !notCreated { return true }
+	if !strings.Contains(answer, "[assigned-plan:"+plan.PlanID+"]") { return false }
+	if approved && (plan.Request == nil || plan.Request.Status != "approved") { return false }
+	if pending && (plan.Request == nil || plan.Request.Status != "pending") { return false }
+	if notCreated && plan.Request != nil { return false }
 	return true
 }
 
@@ -112,7 +128,7 @@ func (a *Assistant) Answer(ctx context.Context, plan Plan, question string, cata
 		return BuddyAnswer{}, err
 	}
 	answer = strings.TrimSpace(answer)
-	if !citedSourcesValid(answer, selection.sources) {
+	if !citedSourcesValid(answer, selection.sources) || !lifecycleClaimsValid(answer, plan) {
 		return BuddyAnswer{
 			Answer:  "Не удалось подтвердить источники ответа. Уточни вопрос у наставника.",
 			Sources: []AnswerSource{},

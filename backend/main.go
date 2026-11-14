@@ -28,6 +28,7 @@ func main() {
 		tickets:   NewTicketClient(ticketURL),
 		catalog:   catalog,
 		assistant: &Assistant{model: NewOpenAIClient(aiConfig.BaseURL, aiConfig.Model, aiConfig.Key), modelName: aiConfig.Model},
+		statusTool: NewMCPStatusClient(ticketURL),
 	}
 	addr := os.Getenv("API_ADDR")
 	if addr == "" {
