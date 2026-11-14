@@ -56,8 +56,8 @@ def go_lines(profile: Path, root: Path) -> tuple[dict[str, tuple[int, int]], tup
 def frontend_lines(summary: Path) -> tuple[int, int]:
     data = json.loads(summary.read_text())
     files = {name: value for name, value in data.items() if name != "total"}
-    source_files = {name: value for name, value in files.items()
-                    if name.endswith(("/src/App.tsx", "/src/main.tsx"))}
+    source_files = {name.replace("\\", "/"): value for name, value in files.items()
+                    if name.replace("\\", "/").endswith(("/src/App.tsx", "/src/main.tsx"))}
     if len(source_files) != 2:
         raise ValueError("Vitest summary must cover both src/App.tsx and src/main.tsx")
     return (sum(value["lines"]["covered"] for value in source_files.values()),
