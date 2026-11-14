@@ -46,7 +46,8 @@ type BuddyTurn = {
   error?: string
 }
 
-const API = import.meta.env.VITE_API_URL || ''
+// In Vite development, all API calls use its same-origin proxy.
+const API = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '')
 
 const statusText: Record<Status, string> = {
   done: 'Выполнено',
@@ -244,7 +245,9 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: trimmed }),
       })
-      const data = await response.json() as {
+      const data = await response.json().catch(() => {
+        throw new Error(`Сервер вернул не JSON (HTTP ${response.status}). Проверь адрес страницы и Vite proxy.`)
+      }) as {
         answer?: string
         sources?: BuddySource[]
         error?: string
