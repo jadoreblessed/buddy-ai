@@ -8,8 +8,10 @@ import (
 )
 
 func TestMCPStatusClientAndAnswer(t *testing.T) {
-	plan, _ := samplePlans()
+	assigned, _ := samplePlans()
 	step := Step{ID: "backend-access", Resource: "backend-staging", ActionType: "request_access"}
+	plan := Plan{PlanID: assigned.PlanID, Position: assigned.Position, Role: assigned.Role,
+		Team: assigned.Team, Steps: []Step{step}}
 	called := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct { Method string `json:"method"`; ID int `json:"id"` }
