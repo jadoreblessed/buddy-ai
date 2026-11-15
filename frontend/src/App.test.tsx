@@ -203,6 +203,44 @@ it('retries a failed buddy answer, then opens an available inline citation in ma
   expect(screen.getByText('Сначала настрой локальный сервис.')).toBeInTheDocument()
 })
 
+it('starts a friendly domain dialogue with quick replies and sends short history', async () => {
+  const fetchMock = mockApi({
+    '/api/buddy/answer': [
+      json({
+        answer: 'Привет! Я рядом — твой AI-наставник. С чего начнём?',
+        sources: [],
+        suggestions: ['Что дальше по плану?'],
+      }),
+      json({
+        answer: 'Следующий шаг — доступ к тестовому окружению. [assigned-plan:backend-v1]',
+        sources: [{ id: 'assigned-plan:backend-v1', title: 'Назначенный маршрут', excerpt: 'Твой план на сегодня.' }],
+        model: 'demo-model',
+      }),
+    ],
+  })
+  const user = userEvent.setup()
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Доступ к тестовому окружению' })
+  await user.click(screen.getByRole('button', { name: /Спросить AI-buddy/ }))
+  expect(screen.getByText(/Я рядом — твой AI-наставник/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Что дальше по плану?' })).toBeInTheDocument()
+
+  await user.type(screen.getByRole('textbox', { name: 'Твой вопрос' }), 'Привет')
+  await user.click(screen.getByRole('button', { name: /Отправить/ }))
+  expect(await screen.findByText('Привет! Я рядом — твой AI-наставник. С чего начнём?')).toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Что дальше по плану?' }))
+  expect(await screen.findByText(/Следующий шаг — доступ к тестовому окружению/)).toBeInTheDocument()
+  const buddyCalls = fetchMock.mock.calls.filter(([path]) => path === '/api/buddy/answer')
+  expect(buddyCalls).toHaveLength(2)
+  const body = JSON.parse(String(buddyCalls[1]?.[1]?.body)) as {
+    question: string
+    history: { question: string; answer: string }[]
+  }
+  expect(body.question).toBe('Что дальше по плану?')
+  expect(body.history).toEqual([{ question: 'Привет', answer: 'Привет! Я рядом — твой AI-наставник. С чего начнём?' }])
+})
+
 it('keeps unavailable buddy citations disabled and shows uncited sources separately', async () => {
   mockApi({
     '/api/buddy/answer': [json({

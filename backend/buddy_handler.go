@@ -12,9 +12,10 @@ import (
 
 func (a *App) answerBuddy(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Question string `json:"question"`
+		Question string             `json:"question"`
+		History  []BuddyHistoryTurn `json:"history"`
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	r.Body = http.MaxBytesReader(w, r.Body, 8192)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
@@ -29,6 +30,20 @@ func (a *App) answerBuddy(w http.ResponseWriter, r *http.Request) {
 	if input.Question == "" || utf8.RuneCountInString(input.Question) > 500 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Вопрос должен содержать от 1 до 500 символов"})
 		return
+	}
+	if len(input.History) > 2 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "История диалога слишком длинная"})
+		return
+	}
+	for index := range input.History {
+		question := strings.TrimSpace(input.History[index].Question)
+		answer := strings.TrimSpace(input.History[index].Answer)
+		if question == "" || utf8.RuneCountInString(question) > 500 ||
+			answer == "" || utf8.RuneCountInString(answer) > 700 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректная история диалога"})
+			return
+		}
+		input.History[index] = BuddyHistoryTurn{Question: question, Answer: answer}
 	}
 	plan, err := a.GetAssignedPlan(r.Context(), demoInternID)
 	if err != nil {
@@ -64,7 +79,7 @@ func (a *App) answerBuddy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	answer, err := a.assistant.Answer(r.Context(), plan, input.Question, a.catalog)
+	answer, err := a.assistant.Answer(r.Context(), plan, input.Question, input.History, a.catalog)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrAIUnconfigured):

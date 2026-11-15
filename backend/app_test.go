@@ -362,7 +362,7 @@ func TestBuddyRejectsMalformedQuestionsBeforeCallingProvider(t *testing.T) {
 		{"multiple JSON objects", `{"question":"Доступ?"} {"question":"Другое"}`, "Некорректный формат вопроса"},
 		{"empty question", `{"question":"  "}`, "Вопрос должен содержать от 1 до 500 символов"},
 		{"over 500 characters", `{"question":"` + strings.Repeat("а", 501) + `"}`, "Вопрос должен содержать от 1 до 500 символов"},
-		{"oversized payload", `{"question":"` + strings.Repeat("a", 4100) + `"}`, "Передай вопрос в формате JSON"},
+		{"oversized payload", `{"question":"` + strings.Repeat("a", 8300) + `"}`, "Передай вопрос в формате JSON"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/api/buddy/answer", strings.NewReader(tc.body))

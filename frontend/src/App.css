@@ -384,6 +384,11 @@
 .scenario-dialog p { line-height: 1.55; }
 .scenario-preview { max-height: 220px; margin: 12px 0; padding: 16px; overflow: auto; border-left: 4px solid #906bd0; background: #f1eafe; white-space: pre-wrap; overflow-wrap: anywhere; }
 .buddy-mentor-action { display: block; }
+.buddy-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.buddy-suggestions button { padding: 8px 13px; border: 1px solid #d7c9ef; border-radius: 999px; background: #fff; color: #5b3a8e; font: inherit; font-size: 12px; font-weight: 750; line-height: 1.3; text-align: left; }
+.buddy-suggestions button:hover:not(:disabled) { border-color: #9a77e3; background: #f6f0ff; }
+.buddy-suggestions button span { margin-left: 5px; color: #9a77e3; }
+.buddy-suggestions button:disabled { cursor: not-allowed; opacity: .55; }
 .app-shell :is(input, dialog button):focus-visible { outline: 3px solid #8257d4; outline-offset: 3px; }
 @media (max-width: 900px) {
   .scenario-layout { grid-template-columns: 1fr; }

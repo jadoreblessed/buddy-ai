@@ -63,7 +63,15 @@ type BuddyTurn = {
   toolCall?: string
   error?: string
   suggestedAction?: 'message_mentor'
+  suggestions?: string[]
 }
+
+const starterQuestions = [
+  'Что дальше по плану?',
+  'Какие доступы нужны?',
+  'Как оформить отгул?',
+  'Кто мой наставник?',
+]
 
 // In Vite development, all API calls use its same-origin proxy.
 const API = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '')
@@ -271,7 +279,7 @@ function App() {
     if (listStart >= 0) {
       const lines = answer.slice(listStart + '\nИсточники:'.length).trim().split('\n').filter(Boolean)
       if (lines.length > 0 && lines.every((line) => {
-        const citations = [...line.matchAll(/\[([^\[\]\n]+)\]/g)]
+        const citations = [...line.matchAll(/\[([^[\]\n]+)\]/g)]
         return citations.length > 0 && citations.every((match) => turn.sources?.some((source) => source.id === match[1]))
       })) {
         answer = answer.slice(0, listStart).trimEnd()
@@ -279,7 +287,7 @@ function App() {
     }
 
     const hasCitation = turn.sources?.some((source) => answer.includes(`[${source.id}]`))
-    const content = answer.split(/(\[[^\[\]\n]+\]|\*\*[^*\n]+\*\*|`[^`\n]+`)/g).map((part, index) => {
+    const content = answer.split(/(\[[^[\]\n]+\]|\*\*[^*\n]+\*\*|`[^`\n]+`)/g).map((part, index) => {
       if (part.startsWith('**') && part.endsWith('**')) return <strong key={index}>{part.slice(2, -2)}</strong>
       if (part.startsWith('`') && part.endsWith('`')) return <code key={index}>{part.slice(1, -1)}</code>
       const source = part.startsWith('[') && part.endsWith(']')
@@ -428,6 +436,14 @@ function App() {
     if (!trimmed || answering) return
 
     const index = retryIndex ?? turns.length
+    const history = turns
+      .slice(0, index)
+      .filter((turn) => typeof turn.answer === 'string' && turn.answer.trim())
+      .slice(-2)
+      .map((turn) => ({
+        question: turn.question,
+        answer: Array.from(turn.answer ?? '').slice(0, 700).join(''),
+      }))
     setAnswering(true)
     setQuestion('')
     if (retryIndex === undefined) {
@@ -442,7 +458,7 @@ function App() {
       const response = await fetch(`${API}/api/buddy/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: trimmed }),
+        body: JSON.stringify({ question: trimmed, ...(history.length > 0 ? { history } : {}) }),
       })
       const data = await response.json().catch(() => {
         throw new Error(`Сервер вернул не JSON (HTTP ${response.status}). Проверь адрес страницы и Vite proxy.`)
@@ -453,13 +469,24 @@ function App() {
         model?: string
         toolCall?: string
         suggestedAction?: 'message_mentor'
+        suggestions?: string[]
       }
       if (!response.ok) throw new Error(data.error || `Не удалось получить ответ (${response.status})`)
       if (typeof data.answer !== 'string' || !Array.isArray(data.sources)) {
         throw new Error('Сервер вернул неполный ответ. Попробуй ещё раз.')
       }
       setTurns((previous) => previous.map((turn, position) =>
-        position === index ? { question: trimmed, answer: data.answer, sources: data.sources, model: data.model, toolCall: data.toolCall, suggestedAction: data.suggestedAction } : turn,
+        position === index ? {
+          question: trimmed,
+          answer: data.answer,
+          sources: data.sources,
+          model: data.model,
+          toolCall: data.toolCall,
+          suggestedAction: data.suggestedAction,
+          suggestions: Array.isArray(data.suggestions)
+            ? data.suggestions.filter((item): item is string => typeof item === 'string')
+            : undefined,
+        } : turn,
       ))
     } catch (cause) {
       const message = cause instanceof Error && cause.message !== 'Failed to fetch' && !(cause instanceof SyntaxError)
@@ -889,7 +916,17 @@ function App() {
               <div className="buddy-conversation" role="log" aria-label="Разговор с AI-buddy" aria-live="polite" aria-relevant="additions text">
                 <article className="buddy-message buddy-intro">
                   <span className="buddy-speaker">Начало разговора</span>
-                  <p>Привет! Спроси о первом дне, команде или следующем шаге. Я подскажу, где искать ответ.</p>
+                  <p>Привет! Я рядом — твой AI-наставник. Помогу с планом адаптации, доступами, материалами, отгулом и связью с наставником. Выбери вопрос или напиши свой.</p>
+                  {turns.length === 0 && (
+                    <div className="buddy-suggestions">
+                      {starterQuestions.map((suggestion) => (
+                        <button type="button" key={suggestion} disabled={answering}
+                          onClick={() => void askBuddy(suggestion)}>
+                          {suggestion}<span aria-hidden="true">↗</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </article>
                 {turns.map((turn, index) => (
                   <div className="buddy-turn" key={index}>
@@ -899,12 +936,22 @@ function App() {
                     </article>
                     {turn.answer !== undefined && (
                       <article className="buddy-message buddy-answer">
-                        <span className="buddy-speaker">{turn.toolCall === 'get_request_status' ? 'MCP · статус заявки' : turn.model ? 'AI-buddy' : 'Системная подсказка'}</span>
+                        <span className="buddy-speaker">{turn.toolCall === 'get_request_status' ? 'MCP · статус заявки' : turn.model ? 'AI-buddy' : 'AI-buddy · подсказка'}</span>
                         {renderAnswer(turn)}
                         {turn.suggestedAction === 'message_mentor' && (
                           <button type="button" className="action-button buddy-mentor-action" onClick={() => setPage('mentor')}>
                             Написать наставнику ↗
                           </button>
+                        )}
+                        {turn.suggestions && turn.suggestions.length > 0 && (
+                          <div className="buddy-suggestions">
+                            {turn.suggestions.map((suggestion) => (
+                              <button type="button" key={suggestion} disabled={answering}
+                                onClick={() => void askBuddy(suggestion)}>
+                                {suggestion}<span aria-hidden="true">↗</span>
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </article>
                     )}
