@@ -6,4 +6,3 @@ backend/data/
 coverage.out
 mock-service/data/
 __pycache__/
-presentation/
