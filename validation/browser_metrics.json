@@ -1,0 +1,89 @@
+{
+  "url": "http://127.0.0.1:35173",
+  "generated_at": "2026-11-15T18:42:00.477Z",
+  "sample_count": 10,
+  "mode": "Chromium headless, 1280x900 viewport; browser performance.now() trusted click to visible DOM mutation followed by requestAnimationFrame and post-frame task; navigation start to visible CTA post-frame task",
+  "caveat": "Paint opportunity is an approximation, not a GPU presentation timestamp. Results depend on host hardware, load and browser mode; async AI/API responses are included in click metrics.",
+  "metrics": {
+    "plan_navigation_to_visible_cta": {
+      "median_ms": 133.3,
+      "p95_ms": 248.45,
+      "raw_samples_ms": [
+        332.6,
+        117.9,
+        144.2,
+        133.5,
+        133.1,
+        112.5,
+        119.1,
+        145.6,
+        145.3,
+        128.4
+      ]
+    },
+    "cta_click_to_visible_confirmation": {
+      "median_ms": 15,
+      "p95_ms": 19.39,
+      "raw_samples_ms": [
+        15.5,
+        13,
+        20.6,
+        16,
+        14.3,
+        14.5,
+        13.8,
+        14,
+        16.8,
+        17.9
+      ]
+    },
+    "navigation_click_to_visible_buddy": {
+      "median_ms": 26.6,
+      "p95_ms": 44.6,
+      "raw_samples_ms": [
+        26.2,
+        33.6,
+        18.8,
+        24.4,
+        33.1,
+        18.5,
+        53.6,
+        27,
+        31.1,
+        20
+      ]
+    },
+    "submit_click_to_visible_greeting": {
+      "median_ms": 31,
+      "p95_ms": 41.81,
+      "raw_samples_ms": [
+        30.6,
+        30.2,
+        35.9,
+        36.2,
+        33,
+        31.4,
+        28.8,
+        46.4,
+        30.4,
+        28.9
+      ]
+    },
+    "suggestion_click_to_visible_mentor_answer": {
+      "median_ms": 29.05,
+      "p95_ms": 34.82,
+      "raw_samples_ms": [
+        32.6,
+        29.4,
+        34,
+        28.4,
+        28.7,
+        27.2,
+        35.5,
+        32.3,
+        28.2,
+        25.5
+      ]
+    }
+  }
+}

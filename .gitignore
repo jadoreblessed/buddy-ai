@@ -5,4 +5,5 @@ backend/data/
 .env
 coverage.out
 mock-service/data/
-__pycache__/TODO.md
+__pycache__/
+presentation/

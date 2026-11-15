@@ -1,0 +1,82 @@
+{
+  "summary": {
+    "generated_at": "2026-11-15T18:37:26.359557+00:00",
+    "mode": "live",
+    "incomplete_reason": "Квота провайдера исчерпана; прогон остановлен без повторных запросов.",
+    "positions": [
+      "backend",
+      "frontend",
+      "analyst"
+    ],
+    "states": [
+      "not_created",
+      "pending",
+      "approved"
+    ],
+    "cases": 2,
+    "passed": 1,
+    "pass_rate": 0.5,
+    "model_cases": 1,
+    "passed_model_cases": 0,
+    "model_pass_rate": 0.0,
+    "rate_limited_calls": 1,
+    "model_latency_ms": {
+      "median": null,
+      "p95": null,
+      "max": null
+    },
+    "interpretation": "Автоматический контрактный чек, не оценка смысловой достоверности и не продуктовая метрика."
+  },
+  "results": [
+    {
+      "position": "backend",
+      "state": "not_created",
+      "name": "greeting",
+      "question": "Привет",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.85,
+      "answer": "Привет, Маша! Я рядом — твой AI-наставник по адаптации. Помогу с планом, доступами, материалами, отгулом и связью с наставником. С чего начнём?",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "backend",
+      "state": "not_created",
+      "name": "access",
+      "question": "Какой доступ мне нужен?",
+      "expected_model": true,
+      "status": 503,
+      "latency_ms": 425.25,
+      "answer": "",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "Лимит запросов к модели исчерпан. Попробуй позже.",
+      "checks": {
+        "http": false,
+        "answer": false,
+        "model": false,
+        "sources": false,
+        "tool": true,
+        "source_ids": false,
+        "contains": true,
+        "contains_any": false
+      },
+      "passed": false
+    }
+  ]
+}

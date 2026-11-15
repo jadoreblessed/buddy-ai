@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -39,6 +40,23 @@ func decodeBuddyAnswer(t *testing.T, response *httptest.ResponseRecorder) BuddyA
 	return answer
 }
 
+func TestBuddyNormalizesTruncatedCitations(t *testing.T) {
+	sources := []AnswerSource{
+		{ID: "demo-access-policy"},
+		{ID: "assigned-plan:onboarding-backend-v1"},
+	}
+	answer, ok := normalizeCitations("Нужен доступ. [demo-access-policy:1] [assigned-plan:1]", sources)
+	if !ok || answer != "Нужен доступ. [demo-access-policy] [assigned-plan:onboarding-backend-v1]" {
+		t.Fatalf("сокращённые ID не нормализованы: %q, %v", answer, ok)
+	}
+	if _, ok := normalizeCitations("Ответ без источника", sources); !ok {
+		t.Fatal("отсутствие цитат должно отклоняться отдельной проверкой")
+	}
+	if _, ok := normalizeCitations("Ссылка [unknown:1]", sources); ok {
+		t.Fatal("неизвестный источник принят")
+	}
+}
+
 func TestBuddyConversationStaysInScopeWithoutModel(t *testing.T) {
 	handler, model := conversationHandler(t)
 	for _, tc := range []struct {
@@ -68,6 +86,18 @@ func TestBuddyConversationStaysInScopeWithoutModel(t *testing.T) {
 	}
 	if model.calls != 0 {
 		t.Fatalf("разговорный слой вызвал модель: %d", model.calls)
+	}
+}
+
+func TestBuddyAnswerRewritesTruncatedCitations(t *testing.T) {
+	handler, model := conversationHandler(t)
+	model.output = "Создай заявку на стенд. [assigned-plan:1] [demo-access-policy:1]"
+	response := postBuddy(handler, "Какие доступы нужны?")
+	requireStatus(t, response, http.StatusOK)
+	answer := decodeBuddyAnswer(t, response)
+	if answer.Model != "test-model" || !strings.Contains(answer.Answer, "[assigned-plan:backend-v1]") ||
+		!strings.Contains(answer.Answer, "[demo-access-policy]") || strings.Contains(answer.Answer, ":1]") {
+		t.Fatalf("ответ сохранил сокращённые ID: %+v", answer)
 	}
 }
 
@@ -167,5 +197,45 @@ func TestBuddyCodeRequestDoesNotReachModel(t *testing.T) {
 	answer := decodeBuddyAnswer(t, response)
 	if model.calls != 0 || !strings.Contains(answer.Answer, "вне моей специализации") {
 		t.Fatalf("офтопик дошёл до модели: %+v", answer)
+	}
+}
+
+type sequenceModel struct {
+	calls   int
+	inputs  []string
+	outputs []string
+}
+
+func (m *sequenceModel) Generate(_ context.Context, _, input string) (string, error) {
+	m.calls++
+	m.inputs = append(m.inputs, input)
+	if len(m.outputs) == 0 {
+		return "", nil
+	}
+	output := m.outputs[0]
+	m.outputs = m.outputs[1:]
+	return output, nil
+}
+
+func TestBuddyRetriesUncitedAnswerOnce(t *testing.T) {
+	tickets := ticketTestServer(t)
+	defer tickets.Close()
+	backend, _ := samplePlans()
+	model := &sequenceModel{outputs: []string{
+		"Создай заявку на стенд без ссылки.",
+		"Создай заявку на стенд. [demo-access-policy] [assigned-plan:backend-v1]",
+	}}
+	handler := newHandler(&App{
+		source: &mutableSource{plan: backend}, tickets: NewTicketClient(tickets.URL),
+		catalog: testCatalog(t), assistant: &Assistant{model: model, modelName: "test-model"},
+	})
+	response := postBuddy(handler, "Какие доступы нужны?")
+	requireStatus(t, response, http.StatusOK)
+	answer := decodeBuddyAnswer(t, response)
+	if model.calls != 2 || answer.Model != "test-model" || len(answer.Sources) != 2 {
+		t.Fatalf("повтор после отклонённого ответа не сработал: %+v, calls=%d", answer, model.calls)
+	}
+	if !strings.Contains(model.inputs[1], "Предыдущий ответ отклонён") {
+		t.Fatalf("повтор не содержит корректирующую инструкцию: %s", model.inputs[1])
 	}
 }

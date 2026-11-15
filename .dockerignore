@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+presentation/
+mock-service/data/
+backend/data/
+**/node_modules/
+**/dist/
+**/coverage/
+coverage.out
+__pycache__/
+*.pyc
+validation/
+*.md
+*.log

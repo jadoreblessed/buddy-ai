@@ -1,0 +1,419 @@
+{
+  "summary": {
+    "generated_at": "2026-11-15T18:37:24.937480+00:00",
+    "mode": "deterministic",
+    "incomplete_reason": null,
+    "positions": [
+      "backend",
+      "frontend",
+      "analyst"
+    ],
+    "states": [
+      "not_created",
+      "pending",
+      "approved"
+    ],
+    "cases": 15,
+    "passed": 15,
+    "pass_rate": 1.0,
+    "model_cases": 0,
+    "passed_model_cases": 0,
+    "model_pass_rate": null,
+    "rate_limited_calls": 0,
+    "model_latency_ms": {
+      "median": null,
+      "p95": null,
+      "max": null
+    },
+    "interpretation": "Автоматический контрактный чек, не оценка смысловой достоверности и не продуктовая метрика."
+  },
+  "results": [
+    {
+      "position": "backend",
+      "state": "not_created",
+      "name": "greeting",
+      "question": "Привет",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.57,
+      "answer": "Привет, Маша! Я рядом — твой AI-наставник по адаптации. Помогу с планом, доступами, материалами, отгулом и связью с наставником. С чего начнём?",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "backend",
+      "state": "not_created",
+      "name": "code",
+      "question": "Напиши калькулятор на Python",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.33,
+      "answer": "Это вне моей специализации. Я помогаю только с адаптацией стажёра: планом, доступами, материалами, отгулом и связью с наставником. Могу подсказать следующий шаг или объяснить, как запросить доступ.",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "backend",
+      "state": "not_created",
+      "name": "offtopic",
+      "question": "Какие скидки в кофейне?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.45,
+      "answer": "В тестовых материалах нет ответа на этот вопрос. Я помогаю только с адаптацией стажёра: планом, доступами, материалами, отгулом и связью с наставником. Уточни детали у наставника.",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "backend",
+      "state": "pending",
+      "name": "status",
+      "question": "Какой статус моей заявки?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 2.24,
+      "answer": "Заявка DEMO-4906 на доступ к «Тестовое окружение» ожидает согласования наставником. [assigned-plan:onboarding-backend-v1]",
+      "sources": [
+        "assigned-plan:onboarding-backend-v1"
+      ],
+      "model": "",
+      "toolCall": "get_request_status",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "backend",
+      "state": "approved",
+      "name": "status",
+      "question": "Заявка на доступ уже согласована?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 2.12,
+      "answer": "Заявка DEMO-4906 на доступ к «Тестовое окружение» согласована наставником. [assigned-plan:onboarding-backend-v1]",
+      "sources": [
+        "assigned-plan:onboarding-backend-v1"
+      ],
+      "model": "",
+      "toolCall": "get_request_status",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "frontend",
+      "state": "not_created",
+      "name": "greeting",
+      "question": "Привет",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 0.99,
+      "answer": "Привет, Маша! Я рядом — твой AI-наставник по адаптации. Помогу с планом, доступами, материалами, отгулом и связью с наставником. С чего начнём?",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "frontend",
+      "state": "not_created",
+      "name": "code",
+      "question": "Напиши калькулятор на Python",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.07,
+      "answer": "Это вне моей специализации. Я помогаю только с адаптацией стажёра: планом, доступами, материалами, отгулом и связью с наставником. Могу подсказать следующий шаг или объяснить, как запросить доступ.",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "frontend",
+      "state": "not_created",
+      "name": "offtopic",
+      "question": "Какие скидки в кофейне?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.11,
+      "answer": "В тестовых материалах нет ответа на этот вопрос. Я помогаю только с адаптацией стажёра: планом, доступами, материалами, отгулом и связью с наставником. Уточни детали у наставника.",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "frontend",
+      "state": "pending",
+      "name": "status",
+      "question": "Какой статус моей заявки?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 2.32,
+      "answer": "Заявка DEMO-4907 на доступ к «Стенд интерфейсов» ожидает согласования наставником. [assigned-plan:onboarding-frontend-v1]",
+      "sources": [
+        "assigned-plan:onboarding-frontend-v1"
+      ],
+      "model": "",
+      "toolCall": "get_request_status",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "frontend",
+      "state": "approved",
+      "name": "status",
+      "question": "Заявка на доступ уже согласована?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 2.52,
+      "answer": "Заявка DEMO-4907 на доступ к «Стенд интерфейсов» согласована наставником. [assigned-plan:onboarding-frontend-v1]",
+      "sources": [
+        "assigned-plan:onboarding-frontend-v1"
+      ],
+      "model": "",
+      "toolCall": "get_request_status",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "analyst",
+      "state": "not_created",
+      "name": "greeting",
+      "question": "Привет",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.29,
+      "answer": "Привет, Маша! Я рядом — твой AI-наставник по адаптации. Помогу с планом, доступами, материалами, отгулом и связью с наставником. С чего начнём?",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "analyst",
+      "state": "not_created",
+      "name": "code",
+      "question": "Напиши калькулятор на Python",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.0,
+      "answer": "Это вне моей специализации. Я помогаю только с адаптацией стажёра: планом, доступами, материалами, отгулом и связью с наставником. Могу подсказать следующий шаг или объяснить, как запросить доступ.",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "analyst",
+      "state": "not_created",
+      "name": "offtopic",
+      "question": "Какие скидки в кофейне?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.72,
+      "answer": "В тестовых материалах нет ответа на этот вопрос. Я помогаю только с адаптацией стажёра: планом, доступами, материалами, отгулом и связью с наставником. Уточни детали у наставника.",
+      "sources": [],
+      "model": "",
+      "toolCall": "",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "analyst",
+      "state": "pending",
+      "name": "status",
+      "question": "Какой статус моей заявки?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 2.5,
+      "answer": "Заявка DEMO-4908 на доступ к «Каталог метрик» ожидает согласования наставником. [assigned-plan:onboarding-analyst-v1]",
+      "sources": [
+        "assigned-plan:onboarding-analyst-v1"
+      ],
+      "model": "",
+      "toolCall": "get_request_status",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    },
+    {
+      "position": "analyst",
+      "state": "approved",
+      "name": "status",
+      "question": "Заявка на доступ уже согласована?",
+      "expected_model": false,
+      "status": 200,
+      "latency_ms": 1.91,
+      "answer": "Заявка DEMO-4908 на доступ к «Каталог метрик» согласована наставником. [assigned-plan:onboarding-analyst-v1]",
+      "sources": [
+        "assigned-plan:onboarding-analyst-v1"
+      ],
+      "model": "",
+      "toolCall": "get_request_status",
+      "error": "",
+      "checks": {
+        "http": true,
+        "answer": true,
+        "model": true,
+        "sources": true,
+        "tool": true,
+        "source_ids": true,
+        "contains": true,
+        "contains_any": true
+      },
+      "passed": true
+    }
+  ]
+}

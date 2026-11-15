@@ -23,8 +23,8 @@ func TestMaterialsScopedToAssignedPosition(t *testing.T) {
 	model := &fakeModel{output: "Смотри назначенный план. [assigned-plan:frontend-v1]"}
 	handler := newHandler(&App{source: source, tickets: NewTicketClient(tickets.URL), catalog: testCatalog(t), assistant: &Assistant{model: model, modelName: "test-model"}})
 	for _, tc := range []struct {
-		plan AssignedPlan
-		own  string
+		plan  AssignedPlan
+		own   string
 		other []string
 	}{
 		{backend, "demo-backend-workspace", []string{"demo-frontend-workspace", "demo-analyst-workspace"}},
@@ -149,7 +149,7 @@ func TestMaterialsPlanErrors(t *testing.T) {
 func TestConflictingInstructionsDoNotCallModel(t *testing.T) {
 	catalog := testCatalog(t)
 	catalog.entries = append(catalog.entries, catalogEntry{
-		Material: Material{ID: "alternative-access", Title: "Противоречащая тестовая инструкция", Content: "В этом варианте стажёр одобряет заявку самостоятельно."},
+		Material:  Material{ID: "alternative-access", Title: "Противоречащая тестовая инструкция", Content: "В этом варианте стажёр одобряет заявку самостоятельно."},
 		Positions: []string{"backend"}, Topics: []string{"access"}, Aliases: []string{"самостоятельно"}, Directive: "intern-approves-access",
 	})
 	tickets := ticketTestServer(t)
@@ -181,6 +181,7 @@ func TestConflictingInstructionsDoNotCallModel(t *testing.T) {
 	}
 	requireVisibleSources(t, answer.Sources, decodeMaterials(t, send(handler, "GET", "/api/materials", "", "")))
 	source.plan = analyst
+	model.output = "Смотри назначенный план. [assigned-plan:analyst-v1]"
 	response = postBuddy(handler, "Какие доступы нужны?")
 	requireStatus(t, response, http.StatusOK)
 	if model.calls != 1 {
@@ -250,7 +251,7 @@ func TestPublicReferencesVisibleButNotModelSources(t *testing.T) {
 		"public-tech-internship":       "https://github.com/avito-tech/tech-internship",
 		"public-design-system-article": "https://habr.com/ru/companies/avito/articles/543450/",
 		"public-internship-landing":    "https://start.avito.ru/internships",
-		"public-design-system-video":  "https://rutube.ru/video/6a203a00a9ef7cdd25d811a01cacd61b/",
+		"public-design-system-video":   "https://rutube.ru/video/6a203a00a9ef7cdd25d811a01cacd61b/",
 	}
 	catalog := testCatalog(t)
 	tickets := ticketTestServer(t)

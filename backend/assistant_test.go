@@ -145,6 +145,18 @@ func TestLifecycleClaimsNeedCurrentPlanAndCorrectStatus(t *testing.T) {
 	if !lifecycleClaimsValid("Заявка не создана. [assigned-plan:"+plan.PlanID+"]", Plan{PlanID: plan.PlanID}) {
 		t.Fatal("correct current status rejected")
 	}
+	if !lifecycleClaimsValid("Переходите к следующему шагу только после одобрения заявки. [assigned-plan:"+plan.PlanID+"]",
+		Plan{PlanID: plan.PlanID, Request: &Request{Status: "pending"}}) {
+		t.Fatal("condition about future approval was mistaken for an approved request")
+	}
+	if !lifecycleClaimsValid("Заявка ожидает согласования. [assigned-plan:"+plan.PlanID+"]",
+		Plan{PlanID: plan.PlanID, Request: &Request{Status: "pending"}}) {
+		t.Fatal("correct pending status rejected")
+	}
+	if lifecycleClaimsValid("Заявка уже согласована. [assigned-plan:"+plan.PlanID+"]",
+		Plan{PlanID: plan.PlanID, Request: &Request{Status: "pending"}}) {
+		t.Fatal("approved claim accepted for a pending request")
+	}
 }
 
 func TestBuddyProviderErrorsAndValidation(t *testing.T) {
