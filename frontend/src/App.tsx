@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import './App.css'
 
 type Status = 'done' | 'current' | 'pending' | 'locked'
@@ -23,6 +23,7 @@ type AccessRequest = {
   approvedAt?: string
 }
 
+type Mentor = { id: string; name: string; channel: string }
 type Plan = {
   planId: string
   intern: string
@@ -32,8 +33,25 @@ type Plan = {
   progress: number
   steps: Step[]
   request: AccessRequest | null
+  mentor: Mentor
 }
-type Page = 'plan' | 'buddy' | 'request' | 'materials'
+type Page = 'plan' | 'buddy' | 'request' | 'materials' | 'absence' | 'mentor'
+type AbsenceRequest = {
+  id: string
+  internId: string
+  date: string
+  status: 'pending' | 'approved'
+  createdAt: string
+  approvedAt?: string
+}
+type MentorMessage = {
+  id: string
+  internId: string
+  mentorId: string
+  text: string
+  status: 'sent'
+  createdAt: string
+}
 type Material = { id: string; title: string; content: string; url?: string }
 
 type BuddySource = { id: string; title: string; excerpt: string }
@@ -44,6 +62,7 @@ type BuddyTurn = {
   model?: string
   toolCall?: string
   error?: string
+  suggestedAction?: 'message_mentor'
 }
 
 // In Vite development, all API calls use its same-origin proxy.
@@ -54,6 +73,40 @@ const statusText: Record<Status, string> = {
   current: 'Сейчас',
   pending: 'Ожидает согласования',
   locked: 'Следующий шаг',
+}
+
+async function apiResult<T>(response: Response): Promise<T> {
+  const data = await response.json().catch(() => null) as (T & { error?: string }) | null
+  if (!response.ok) throw new Error(data?.error || `Сервис недоступен (HTTP ${response.status}). Попробуй ещё раз.`)
+  if (!data) throw new Error('Сервер вернул некорректный ответ. Попробуй ещё раз.')
+  return data
+}
+
+function ConfirmDialog({ title, children, confirmLabel, busy, onCancel, onConfirm }: {
+  title: string
+  children: ReactNode
+  confirmLabel: string
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const element = dialog.current
+    element?.showModal()
+    return () => element?.close()
+  }, [])
+  return (
+    <dialog ref={dialog} className="scenario-dialog" aria-labelledby="scenario-confirm-title"
+      onCancel={(event) => { if (busy) event.preventDefault(); else onCancel() }}>
+      <h2 id="scenario-confirm-title">{title}</h2>
+      {children}
+      <div className="confirm-actions">
+        <button type="button" className="cancel-button" disabled={busy} onClick={onCancel}>Отмена</button>
+        <button type="button" className="action-button" disabled={busy} onClick={onConfirm}>{confirmLabel}</button>
+      </div>
+    </dialog>
+  )
 }
 
 function App() {
@@ -72,6 +125,23 @@ function App() {
   const [materialsError, setMaterialsError] = useState('')
   const [materialsAttempt, setMaterialsAttempt] = useState(0)
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null)
+  const [absenceDate, setAbsenceDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [absences, setAbsences] = useState<AbsenceRequest[] | null>(null)
+  const [absenceLoading, setAbsenceLoading] = useState(false)
+  const [absenceError, setAbsenceError] = useState('')
+  const [absenceAttempt, setAbsenceAttempt] = useState(0)
+  const [absenceBusy, setAbsenceBusy] = useState(false)
+  const [absenceConfirm, setAbsenceConfirm] = useState<string | null>(null)
+  const [absenceReceipt, setAbsenceReceipt] = useState<AbsenceRequest | null>(null)
+  const [mentorDraft, setMentorDraft] = useState('')
+  const [messages, setMessages] = useState<MentorMessage[] | null>(null)
+  const [messagesKey, setMessagesKey] = useState('')
+  const [messagesLoading, setMessagesLoading] = useState(false)
+  const [messagesError, setMessagesError] = useState('')
+  const [messagesAttempt, setMessagesAttempt] = useState(0)
+  const [messageBusy, setMessageBusy] = useState(false)
+  const [messageConfirm, setMessageConfirm] = useState<string | null>(null)
+  const [messageReceipt, setMessageReceipt] = useState<MentorMessage | null>(null)
 
   const loadPlan = useCallback(async () => {
     setLoading(true)
@@ -131,6 +201,64 @@ function App() {
     })()
     return () => controller.abort()
   }, [planKey, materialsAttempt])
+  const mentorKey = plan ? `${planKey}:${plan.mentor?.id ?? ''}` : ''
+  useEffect(() => {
+    if (page !== 'absence' || !planKey) return
+    const controller = new AbortController()
+    setAbsenceLoading(true)
+    setAbsenceError('')
+    void (async () => {
+      try {
+        const data = await apiResult<{ requests: AbsenceRequest[] }>(
+          await fetch(`${API}/api/absences`, { headers: { 'X-Demo-User': 'intern-1' }, signal: controller.signal }),
+        )
+        if (!Array.isArray(data.requests)) throw new Error('Сервер вернул неполный список отгулов.')
+        if (!controller.signal.aborted) setAbsences(data.requests)
+      } catch (cause) {
+        if (!controller.signal.aborted) setAbsenceError(cause instanceof Error && cause.message !== 'Failed to fetch'
+          ? cause.message : 'Нет связи с сервисом отгулов. Попробуй ещё раз.')
+      } finally {
+        if (!controller.signal.aborted) setAbsenceLoading(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [page, planKey, absenceAttempt])
+
+  useEffect(() => {
+    if (page !== 'mentor' || !mentorKey || !plan?.mentor?.id) return
+    const controller = new AbortController()
+    setMessagesLoading(true)
+    setMessagesError('')
+    void (async () => {
+      try {
+        const data = await apiResult<{ mentor: Mentor; messages: MentorMessage[] }>(
+          await fetch(`${API}/api/mentor/messages`, { headers: { 'X-Demo-User': 'intern-1' }, signal: controller.signal }),
+        )
+        if (!Array.isArray(data.messages) || data.mentor?.id !== plan.mentor.id) {
+          throw new Error('Сервер вернул данные другого наставника или неполную историю.')
+        }
+        if (!controller.signal.aborted) {
+          setMessages(data.messages)
+          setMessagesKey(mentorKey)
+        }
+      } catch (cause) {
+        if (!controller.signal.aborted) setMessagesError(cause instanceof Error && cause.message !== 'Failed to fetch'
+          ? cause.message : 'Нет связи с демо-мессенджером. Попробуй ещё раз.')
+      } finally {
+        if (!controller.signal.aborted) setMessagesLoading(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [page, mentorKey, messagesAttempt])
+
+  useEffect(() => {
+    if (!planKey) return
+    const firstTask = plan?.steps.find((step) => step.actionType === 'none' && step.status !== 'done')
+    setMentorDraft(`Здравствуйте! Подскажите, пожалуйста, с чего начать ${firstTask ? `задачу «${firstTask.title}»` : 'первую задачу'} по моему плану адаптации?`)
+    setMessageReceipt(null)
+    setMessages(null)
+    setMessagesKey('')
+  }, [mentorKey])
 
   function openMaterial(id: string) {
     setSelectedMaterialId(id)
@@ -224,6 +352,77 @@ function App() {
     }
   }
 
+  async function createAbsence(date: string) {
+    if (absenceBusy) return
+    setAbsenceBusy(true)
+    setAbsenceError('')
+    setAbsenceReceipt(null)
+    try {
+      const data = await apiResult<{ request: AbsenceRequest }>(await fetch(`${API}/api/absences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Demo-User': 'intern-1' },
+        body: JSON.stringify({ date }),
+      }))
+      if (!data.request?.id || data.request.internId !== 'intern-1' || data.request.date !== date || !['pending', 'approved'].includes(data.request.status)) {
+        throw new Error('Сервер вернул неполную заявку на отгул.')
+      }
+      setAbsences((previous) => [data.request, ...(previous ?? []).filter((item) => item.id !== data.request.id)])
+      setAbsenceReceipt(data.request)
+    } catch (cause) {
+      setAbsenceError(cause instanceof Error && cause.message !== 'Failed to fetch'
+        ? cause.message : 'Не удалось создать отгул: нет связи с сервисом. Попробуй ещё раз.')
+    } finally {
+      setAbsenceBusy(false)
+    }
+  }
+
+  async function approveAbsence(id: string) {
+    if (absenceBusy) return
+    setAbsenceBusy(true)
+    setAbsenceError('')
+    try {
+      const data = await apiResult<{ request: AbsenceRequest }>(await fetch(
+        `${API}/api/absences/${encodeURIComponent(id)}/approve`,
+        { method: 'POST', headers: { 'X-Demo-User': plan?.mentor.id ?? '' } },
+      ))
+      if (data.request?.id !== id || data.request.status !== 'approved') {
+        throw new Error('Сервер не подтвердил согласование отгула.')
+      }
+      setAbsences((previous) => previous?.map((item) => item.id === id ? data.request : item) ?? null)
+      setAbsenceReceipt((previous) => previous?.id === id ? data.request : previous)
+    } catch (cause) {
+      setAbsenceError(cause instanceof Error && cause.message !== 'Failed to fetch'
+        ? cause.message : 'Не удалось согласовать отгул: нет связи с сервисом. Попробуй ещё раз.')
+    } finally {
+      setAbsenceBusy(false)
+    }
+  }
+
+  async function sendMentorMessage(text: string, mentor: Mentor) {
+    if (messageBusy) return
+    setMessageBusy(true)
+    setMessagesError('')
+    setMessageReceipt(null)
+    try {
+      const data = await apiResult<{ message: MentorMessage }>(await fetch(`${API}/api/mentor/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Demo-User': 'intern-1' },
+        body: JSON.stringify({ text }),
+      }))
+      if (!data.message?.id || data.message.internId !== 'intern-1' || data.message.mentorId !== mentor.id || data.message.status !== 'sent' || data.message.text !== text) {
+        throw new Error('Сервер не подтвердил доставку сообщения наставнику.')
+      }
+      setMessages((previous) => [...(previous ?? []), data.message])
+      setMessageReceipt(data.message)
+      setMentorDraft('')
+    } catch (cause) {
+      setMessagesError(cause instanceof Error && cause.message !== 'Failed to fetch'
+        ? cause.message : 'Не удалось отправить сообщение: нет связи с демо-мессенджером. Попробуй ещё раз.')
+    } finally {
+      setMessageBusy(false)
+    }
+  }
+
   async function askBuddy(value: string, retryIndex?: number) {
     const trimmed = value.trim()
     if (!trimmed || answering) return
@@ -253,13 +452,14 @@ function App() {
         error?: string
         model?: string
         toolCall?: string
+        suggestedAction?: 'message_mentor'
       }
       if (!response.ok) throw new Error(data.error || `Не удалось получить ответ (${response.status})`)
       if (typeof data.answer !== 'string' || !Array.isArray(data.sources)) {
         throw new Error('Сервер вернул неполный ответ. Попробуй ещё раз.')
       }
       setTurns((previous) => previous.map((turn, position) =>
-        position === index ? { question: trimmed, answer: data.answer, sources: data.sources, model: data.model, toolCall: data.toolCall } : turn,
+        position === index ? { question: trimmed, answer: data.answer, sources: data.sources, model: data.model, toolCall: data.toolCall, suggestedAction: data.suggestedAction } : turn,
       ))
     } catch (cause) {
       const message = cause instanceof Error && cause.message !== 'Failed to fetch' && !(cause instanceof SyntaxError)
@@ -315,6 +515,18 @@ function App() {
               onClick={() => setPage('request')}
             >
               <span>↗</span> Моя заявка
+            </button>
+
+            <button type="button" className={page === 'absence' ? 'active' : ''}
+              aria-current={page === 'absence' ? 'page' : undefined}
+              onClick={() => setPage('absence')}>
+              <span aria-hidden="true">◷</span> Отгул на день
+            </button>
+
+            <button type="button" className={page === 'mentor' ? 'active' : ''}
+              aria-current={page === 'mentor' ? 'page' : undefined}
+              onClick={() => setPage('mentor')}>
+              <span aria-hidden="true">✉</span> Написать наставнику
             </button>
 
             <button
@@ -483,7 +695,7 @@ function App() {
                       onClick={() =>
                         void post(
                           `/api/requests/${request.id}/approve`,
-                          'mentor-1',
+                          plan.mentor.id,
                         )
                       }
                     >
@@ -503,6 +715,104 @@ function App() {
                   </button>
                 </div>
               )}
+            </section>
+          )}
+
+          {plan && page === 'absence' && (
+            <section className="inner-page scenario-page" aria-labelledby="absence-title">
+              <p className="eyebrow">Демо / Сервис отсутствий</p>
+              <h1 id="absence-title">Отгул на день<span className="purple-dot">.</span></h1>
+              <p className="scenario-intro">Синтетический сценарий: выбери один день, проверь дату и подтверди заявку. Это не реальный кадровый сервис.</p>
+              <div className="scenario-layout">
+                <form className="scenario-panel" onSubmit={(event) => {
+                  event.preventDefault()
+                  if (absenceDate >= new Date().toISOString().slice(0, 10)) setAbsenceConfirm(absenceDate)
+                }}>
+                  <h2>Выбрать дату</h2>
+                  <label htmlFor="absence-date">День отгула</label>
+                  <input id="absence-date" type="date" required min={new Date().toISOString().slice(0, 10)}
+                    value={absenceDate} onChange={(event) => setAbsenceDate(event.target.value)} />
+                  <p className="scenario-note">Только один день, сегодня или позже. Причину указывать не нужно.</p>
+                  <button className="action-button" type="submit" disabled={absenceBusy || absenceLoading || !!absenceError || !absences || !absenceDate}>
+                    Проверить заявку
+                  </button>
+                </form>
+                <section className="scenario-panel scenario-history" aria-labelledby="absence-history-title">
+                  <h2 id="absence-history-title">Мои заявки</h2>
+                  {absenceLoading && <p role="status">Загружаем заявки на отгул…</p>}
+                  {absenceError && !absenceLoading && (
+                    <div className="scenario-error" role="alert">
+                      <p>{absenceError}</p>
+                      <button type="button" className="text-button" onClick={() => setAbsenceAttempt((attempt) => attempt + 1)} disabled={absenceBusy}>Повторить загрузку</button>
+                    </div>
+                  )}
+                  {absenceReceipt && <p className="scenario-receipt" role="status">Заявка {absenceReceipt.id}: {absenceReceipt.status === 'approved' ? 'согласована' : 'ожидает согласования'}.</p>}
+                  {!absenceLoading && !absenceError && absences?.length === 0 && <p>Заявок пока нет. Выбери день для первого отгула.</p>}
+                  {!absenceLoading && !absenceError && !!absences?.length && (
+                    <ul className="scenario-records">
+                      {absences.map((item) => (
+                        <li key={item.id}>
+                          <strong>{item.date}</strong>
+                          <span>Заявка {item.id}</span>
+                          <span className={`request-badge ${item.status}`}>{item.status === 'approved' ? 'Согласована' : 'Ожидает согласования'}</span>
+                          {item.status === 'pending' && (
+                            <button type="button" className="text-button" disabled={absenceBusy}
+                              onClick={() => void approveAbsence(item.id)}>Демо: согласовать как наставник</button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+            </section>
+          )}
+
+          {plan && page === 'mentor' && (
+            <section className="inner-page scenario-page" aria-labelledby="mentor-title">
+              <p className="eyebrow">Демо / Корпоративный мессенджер</p>
+              <h1 id="mentor-title">Написать наставнику<span className="purple-dot">.</span></h1>
+              <p className="scenario-intro">Сообщение останется в синтетическом демо-мессенджере. В реальный чат оно не отправляется.</p>
+              {plan.mentor?.id ? (
+                <div className="scenario-layout">
+                  <form className="scenario-panel" onSubmit={(event) => {
+                    event.preventDefault()
+                    const text = mentorDraft.trim()
+                    if (text && Array.from(text).length <= 500) setMessageConfirm(text)
+                  }}>
+                    <p className="scenario-recipient">Наставник по назначенному плану <strong>{plan.mentor.name}</strong><span>{plan.mentor.channel}</span></p>
+                    <label htmlFor="mentor-message">Сообщение наставнику</label>
+                    <textarea id="mentor-message" rows={6} value={mentorDraft}
+                      onChange={(event) => setMentorDraft(event.target.value)} />
+                    <p className="scenario-note">Черновик можно изменить. До подтверждения ничего не отправляется. До 500 символов.</p>
+                    <button className="action-button" type="submit" disabled={messageBusy || messagesLoading || !!messagesError || !messages || messagesKey !== mentorKey || !mentorDraft.trim() || Array.from(mentorDraft.trim()).length > 500}>
+                      Проверить сообщение
+                    </button>
+                  </form>
+                  <section className="scenario-panel scenario-history" aria-labelledby="message-history-title">
+                    <h2 id="message-history-title">История сообщений</h2>
+                    {messagesLoading && <p role="status">Загружаем историю сообщений…</p>}
+                    {messagesError && !messagesLoading && (
+                      <div className="scenario-error" role="alert">
+                        <p>{messagesError}</p>
+                        <button type="button" className="text-button" onClick={() => setMessagesAttempt((attempt) => attempt + 1)} disabled={messageBusy}>Повторить загрузку</button>
+                      </div>
+                    )}
+                    {messageReceipt && <p className="scenario-receipt" role="status">Сообщение {messageReceipt.id}: отправлено в демо-мессенджер.</p>}
+                    {!messagesLoading && !messagesError && messagesKey === mentorKey && messages?.length === 0 && <p>Сообщений пока нет. Можно начать с вопроса о первой задаче.</p>}
+                    {!messagesLoading && !messagesError && messagesKey === mentorKey && !!messages?.length && (
+                      <ul className="scenario-records">
+                        {messages.map((item) => (
+                          <li key={item.id}>
+                            <span>Сообщение {item.id} · Отправлено</span>
+                            <p>{item.text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </div>
+              ) : <p role="alert">В назначенном плане нет наставника. Сообщение отправить нельзя.</p>}
             </section>
           )}
 
@@ -591,6 +901,11 @@ function App() {
                       <article className="buddy-message buddy-answer">
                         <span className="buddy-speaker">{turn.toolCall === 'get_request_status' ? 'MCP · статус заявки' : turn.model ? 'AI-buddy' : 'Системная подсказка'}</span>
                         {renderAnswer(turn)}
+                        {turn.suggestedAction === 'message_mentor' && (
+                          <button type="button" className="action-button buddy-mentor-action" onClick={() => setPage('mentor')}>
+                            Написать наставнику ↗
+                          </button>
+                        )}
                       </article>
                     )}
                     {turn.error && (
@@ -627,6 +942,31 @@ function App() {
           )}
         </main>
       </div>
+
+      {absenceConfirm && (
+        <ConfirmDialog title="Создать заявку на отгул?" confirmLabel="Создать заявку" busy={absenceBusy}
+          onCancel={() => setAbsenceConfirm(null)}
+          onConfirm={() => {
+            const date = absenceConfirm
+            setAbsenceConfirm(null)
+            void createAbsence(date)
+          }}>
+          <p>Один день: <strong>{absenceConfirm}</strong>. Заявка появится в демо-сервисе со статусом ожидания согласования.</p>
+        </ConfirmDialog>
+      )}
+      {messageConfirm && plan?.mentor?.id && (
+        <ConfirmDialog title="Отправить сообщение?" confirmLabel="Отправить наставнику" busy={messageBusy}
+          onCancel={() => setMessageConfirm(null)}
+          onConfirm={() => {
+            const text = messageConfirm
+            setMessageConfirm(null)
+            void sendMentorMessage(text, plan.mentor)
+          }}>
+          <p>Получатель: <strong>{plan.mentor.name}</strong> ({plan.mentor.channel}). Текст сообщения:</p>
+          <blockquote className="scenario-preview">{messageConfirm}</blockquote>
+          <p>Отправка только в синтетический демо-мессенджер.</p>
+        </ConfirmDialog>
+      )}
 
       {confirmStep?.resource && plan && (
         <div className="modal-backdrop">

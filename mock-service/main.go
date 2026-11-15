@@ -28,6 +28,12 @@ type Step struct {
 	Resource   string `json:"resource,omitempty"`
 }
 
+type Mentor struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Channel string `json:"channel"`
+}
+
 type Plan struct {
 	PlanID   string `json:"planId"`
 	InternID string `json:"internId"`
@@ -35,6 +41,7 @@ type Plan struct {
 	Position string `json:"position"`
 	Role     string `json:"role"`
 	Team     string `json:"team"`
+	Mentor   Mentor `json:"mentor"`
 	Steps    []Step `json:"steps"`
 }
 
@@ -56,6 +63,10 @@ type Service struct {
 	requests    []*Request
 	requestFile string
 	internFile  string
+	absences    []*AbsenceRequest
+	messages    []*Message
+	absenceFile string
+	messageFile string
 }
 
 func newService(requestFile, internFile string) (*Service, error) {
@@ -72,9 +83,11 @@ func newService(requestFile, internFile string) (*Service, error) {
 		position:    "backend",
 		requestFile: requestFile,
 		internFile:  internFile,
+		absenceFile: filepath.Join(filepath.Dir(requestFile), "absences.json"),
+		messageFile: filepath.Join(filepath.Dir(requestFile), "messages.json"),
 	}
 	for _, plan := range plans {
-		if plan.PlanID == "" || plan.InternID != internID || plan.Position == "" || len(plan.Steps) == 0 {
+		if plan.PlanID == "" || plan.InternID != internID || plan.Position == "" || len(plan.Steps) == 0 || plan.Mentor.ID == "" || plan.Mentor.Name == "" || plan.Mentor.Channel == "" {
 			return nil, fmt.Errorf("invalid plan for position %q", plan.Position)
 		}
 		if _, exists := s.plans[plan.Position]; exists {
@@ -110,6 +123,12 @@ func newService(requestFile, internFile string) (*Service, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read requests: %w", err)
 	}
+	if err := loadRecords(s.absenceFile, &s.absences); err != nil {
+		return nil, fmt.Errorf("load absences: %w", err)
+	}
+	if err := loadRecords(s.messageFile, &s.messages); err != nil {
+		return nil, fmt.Errorf("load messages: %w", err)
+	}
 	return s, nil
 }
 
@@ -143,6 +162,11 @@ func (s *Service) handler() http.Handler {
 	mux.HandleFunc("GET /requests/current", s.getRequest)
 	mux.HandleFunc("POST /requests", s.createRequest)
 	mux.HandleFunc("POST /requests/{id}/approve", s.approveRequest)
+	mux.HandleFunc("GET /absences", s.getAbsences)
+	mux.HandleFunc("POST /absences", s.createAbsence)
+	mux.HandleFunc("POST /absences/{id}/approve", s.approveAbsence)
+	mux.HandleFunc("GET /messages", s.getMessages)
+	mux.HandleFunc("POST /messages", s.createMessage)
 	mux.HandleFunc("POST /mcp", s.handleMCP)
 	return mux
 }

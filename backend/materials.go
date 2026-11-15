@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -107,6 +107,7 @@ func assignedPlanMaterial(plan Plan) Material {
 	var content strings.Builder
 	fmt.Fprintf(&content, "Назначенный тестовый план: %s. Позиция: %s. Роль: %s. Команда: %s. Прогресс: %d из %d шагов.\n",
 		plan.PlanID, plan.Position, plan.Role, plan.Team, plan.Progress, len(plan.Steps))
+	fmt.Fprintf(&content, "Назначенный наставник: %s. Канал связи: %s.\n", plan.Mentor.Name, plan.Mentor.Channel)
 	for _, step := range plan.Steps {
 		fmt.Fprintf(&content, "Шаг «%s»: %s. Статус: %s.", step.Title, step.Detail, step.Status)
 		if step.Resource != "" {

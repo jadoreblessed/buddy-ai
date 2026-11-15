@@ -1,6 +1,6 @@
 /// <reference lib="es2024.promise" />
 import '@testing-library/jest-dom/vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
@@ -32,6 +32,7 @@ type Plan = {
   progress: number
   steps: Step[]
   request: Request | null
+  mentor: { id: string; name: string; channel: string }
 }
 
 type Reply = Response | Error | Promise<Response>
@@ -52,6 +53,7 @@ const basePlan: Plan = {
     { id: 'task', title: 'Запуск API локально', detail: 'Поднять сервис.', actionType: 'none', status: 'locked' },
   ],
   request: null,
+  mentor: { id: 'mentor-1', name: 'Алексей Морозов', channel: 'Демо-мессенджер' },
 }
 const backendMaterials = [
   { id: 'backend-guide', title: 'Памятка backend', content: 'Сначала настрой локальный сервис.' },
@@ -80,6 +82,8 @@ function mockApi(overrides: Record<string, Reply[]> = {}) {
 
 beforeEach(() => {
   vi.stubGlobal('scrollTo', vi.fn())
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
 
 it('shows plan loading, handles an HTML server error safely, and retries the assigned plan', async () => {
@@ -277,4 +281,165 @@ it('handles an empty route and explains that no access request or instructions e
   await user.click(screen.getByRole('button', { name: /^▤ Материалы$/ }))
   expect(await screen.findByText('Для твоего маршрута пока нет инструкций.')).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Открытые источники из кейса' })).not.toBeInTheDocument()
+})
+
+it('confirms a one-day absence, shows the request ID, deduplicates a repeat and approves it in the demo', async () => {
+  const date = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
+  const request = { id: 'ABS-7', internId: 'intern-1', date, status: 'pending', createdAt: new Date().toISOString() }
+  const fetchMock = mockApi({
+    '/api/absences': [json({ requests: [] }), json({ request }, 201), json({ request }, 200), json({ requests: [{ ...request, status: 'approved' }] })],
+    '/api/absences/ABS-7/approve': [json({ request: { ...request, status: 'approved', approvedAt: new Date().toISOString() } })],
+  })
+  const user = userEvent.setup()
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Доступ к тестовому окружению' })
+  await user.click(screen.getByRole('button', { name: /Отгул на день/ }))
+  const dateInput = screen.getByLabelText('День отгула')
+  fireEvent.change(dateInput, { target: { value: date } })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Проверить заявку' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: 'Проверить заявку' }))
+  expect(within(screen.getByRole('dialog')).getByText(date)).toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([path, init]) => path === '/api/absences' && init?.method === 'POST')).toHaveLength(0)
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Отмена' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Проверить заявку' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Создать заявку' }))
+  expect(await screen.findByText('Заявка ABS-7: ожидает согласования.')).toBeInTheDocument()
+  const createCall = fetchMock.mock.calls.find(([path, init]) => path === '/api/absences' && init?.method === 'POST')
+  expect(createCall?.[1]).toMatchObject({
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Demo-User': 'intern-1' },
+    body: JSON.stringify({ date }),
+  })
+  await user.click(screen.getByRole('button', { name: 'Проверить заявку' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Создать заявку' }))
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([path, init]) => path === '/api/absences' && init?.method === 'POST')).toHaveLength(2))
+  expect(screen.getAllByText('Заявка ABS-7')).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'Демо: согласовать как наставник' }))
+  expect(await screen.findByText('Заявка ABS-7: согласована.')).toBeInTheDocument()
+  expect(screen.getByText('Согласована', { selector: '.request-badge' })).toBeInTheDocument()
+  expect(fetchMock.mock.calls.find(([path]) => path === '/api/absences/ABS-7/approve')?.[1]).toMatchObject({
+    method: 'POST', headers: { 'X-Demo-User': 'mentor-1' },
+  })
+  await user.click(screen.getByRole('button', { name: /План адаптации/ }))
+  await user.click(screen.getByRole('button', { name: /Отгул на день/ }))
+  expect(await screen.findByText('Согласована', { selector: '.request-badge' })).toBeInTheDocument()
+})
+
+it('reports absence service errors and rejected creation without claiming success', async () => {
+  const date = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
+  const fetchMock = mockApi({
+    '/api/absences': [
+      json({ error: 'Сервис отсутствий недоступен' }, 503),
+      json({ requests: [] }),
+      json({ error: 'Демо-роль не разрешена' }, 403),
+      json({ requests: [] }),
+    ],
+  })
+  const user = userEvent.setup()
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Доступ к тестовому окружению' })
+  await user.click(screen.getByRole('button', { name: /Отгул на день/ }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Сервис отсутствий недоступен')
+  expect(screen.getByRole('button', { name: 'Проверить заявку' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Повторить загрузку' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Проверить заявку' })).toBeEnabled())
+  fireEvent.change(screen.getByLabelText('День отгула'), { target: { value: date } })
+  await user.click(screen.getByRole('button', { name: 'Проверить заявку' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Создать заявку' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Демо-роль не разрешена')
+  expect(screen.queryByText(/Заявка ABS-/)).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Проверить заявку' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Повторить загрузку' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Проверить заявку' })).toBeEnabled())
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/absences')).toHaveLength(4)
+})
+
+it('uses the assigned mentor, confirms the edited draft, handles rejection, then shows the delivery receipt', async () => {
+  const mentor = { id: 'mentor-2', name: 'Дина Орлова', channel: 'Демо-чат' }
+  const text = 'Здравствуйте! Как начать первую задачу?'
+  const message = { id: 'MSG-19', internId: 'intern-1', mentorId: mentor.id, text, status: 'sent', createdAt: new Date().toISOString() }
+  const fetchMock = mockApi({
+    '/api/plan': [json({ ...basePlan, mentor })],
+    '/api/mentor/messages': [
+      json({ mentor, messages: [] }),
+      json({ error: 'Нет доступа к получателю' }, 403),
+      json({ mentor, messages: [] }),
+      json({ message }, 201),
+      json({ mentor, messages: [message] }),
+    ],
+  })
+  const user = userEvent.setup()
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Доступ к тестовому окружению' })
+  await user.click(screen.getByRole('button', { name: /Написать наставнику/ }))
+  expect(screen.getByText('Дина Орлова')).toBeInTheDocument()
+  expect(screen.queryByText('Алексей Морозов')).not.toBeInTheDocument()
+  const draft = screen.getByRole('textbox', { name: 'Сообщение наставнику' })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Проверить сообщение' })).toBeEnabled())
+  await user.clear(draft)
+  await user.type(draft, text)
+  expect(fetchMock.mock.calls.filter(([path, init]) => path === '/api/mentor/messages' && init?.method === 'POST')).toHaveLength(0)
+  await user.click(screen.getByRole('button', { name: 'Проверить сообщение' }))
+  const dialog = screen.getByRole('dialog')
+  expect(within(dialog).getByText('Дина Орлова')).toBeInTheDocument()
+  expect(within(dialog).getByText(text)).toBeInTheDocument()
+  await user.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Проверить сообщение' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Отправить наставнику' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Нет доступа к получателю')
+  expect(draft).toHaveValue(text)
+  expect(screen.queryByText('Сообщение MSG-19: отправлено в демо-мессенджер.')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Повторить загрузку' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Проверить сообщение' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: 'Проверить сообщение' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Отправить наставнику' }))
+  expect(await screen.findByText('Сообщение MSG-19: отправлено в демо-мессенджер.')).toBeInTheDocument()
+  const sent = fetchMock.mock.calls.filter(([path, init]) => path === '/api/mentor/messages' && init?.method === 'POST')
+  expect(sent).toHaveLength(2)
+  expect(sent[1]?.[1]).toMatchObject({
+    method: 'POST', headers: { 'X-Demo-User': 'intern-1', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  expect(draft).toHaveValue('')
+  await user.click(screen.getByRole('button', { name: /План адаптации/ }))
+  await user.click(screen.getByRole('button', { name: /Написать наставнику/ }))
+  expect(await screen.findByText('Сообщение MSG-19 · Отправлено')).toBeInTheDocument()
+})
+
+it('does not present a receipt for a mismatched mentor and routes only a suggested buddy action', async () => {
+  const mentor = basePlan.mentor
+  const fetchMock = mockApi({
+    '/api/mentor/messages': [
+      json({ mentor, messages: [] }),
+      json({ message: { id: 'MSG-wrong', internId: 'intern-1', mentorId: 'someone-else', text: 'Вопрос', status: 'sent' } }, 201),
+      json({ mentor, messages: [] }),
+    ],
+    '/api/buddy/answer': [
+      json({ answer: 'Напиши наставнику.', sources: [] }),
+      json({ answer: `Твой наставник — ${mentor.name}.`, sources: [], suggestedAction: 'message_mentor' }),
+    ],
+  })
+  const user = userEvent.setup()
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Доступ к тестовому окружению' })
+  await user.click(screen.getByRole('button', { name: /Спросить AI-buddy/ }))
+  await user.type(screen.getByRole('textbox', { name: 'Твой вопрос' }), 'Кому написать?')
+  await user.click(screen.getByRole('button', { name: /Отправить/ }))
+  expect(await screen.findByText('Напиши наставнику.')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Написать наставнику ↗/ })).not.toBeInTheDocument()
+  await user.type(screen.getByRole('textbox', { name: 'Твой вопрос' }), 'Кто мой наставник?')
+  await user.click(screen.getByRole('button', { name: /Отправить/ }))
+  const cta = await screen.findByRole('button', { name: 'Написать наставнику ↗' })
+  await user.click(cta)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Проверить сообщение' })).toBeEnabled())
+  const draft = screen.getByRole('textbox', { name: 'Сообщение наставнику' })
+  await user.clear(draft)
+  await user.type(draft, 'Вопрос')
+  await user.click(screen.getByRole('button', { name: 'Проверить сообщение' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Отправить наставнику' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Сервер не подтвердил доставку')
+  expect(draft).toHaveValue('Вопрос')
+  expect(screen.queryByText(/Сообщение MSG-wrong: отправлено/)).not.toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([path, init]) => path === '/api/mentor/messages' && init?.method === 'POST')).toHaveLength(1)
 })

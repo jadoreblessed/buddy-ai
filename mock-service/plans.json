@@ -6,6 +6,7 @@
     "position": "backend",
     "role": "Backend-разработчик",
     "team": "Команда платформы",
+    "mentor": {"id": "mentor-1", "name": "Алексей Морозов", "channel": "Демо-мессенджер"},
     "steps": [
       {"id": "backend-intro", "title": "Знакомство с платформой", "detail": "Разобраться в сервисах команды, их владельцах и схеме взаимодействия.", "actionType": "none", "completed": true},
       {"id": "backend-access", "title": "Доступ к тестовому окружению", "detail": "Запросить доступ к стенду для запуска и проверки сервисов.", "actionType": "request_access", "completed": false, "resource": "Тестовое окружение"},
@@ -20,6 +21,7 @@
     "position": "frontend",
     "role": "Frontend-разработчик",
     "team": "Команда интерфейсов",
+    "mentor": {"id": "mentor-1", "name": "Алексей Морозов", "channel": "Демо-мессенджер"},
     "steps": [
       {"id": "frontend-design", "title": "Знакомство с дизайн-системой", "detail": "Изучить библиотеку компонентов и правила оформления экранов.", "actionType": "none", "completed": true},
       {"id": "frontend-run", "title": "Локальная сборка интерфейса", "detail": "Запустить приложение и разобраться со структурой страниц.", "actionType": "none", "completed": true},
@@ -34,6 +36,7 @@
     "intern": "Маша Ковалёва",
     "position": "analyst",
     "role": "Системный аналитик",
+    "mentor": {"id": "mentor-1", "name": "Алексей Морозов", "channel": "Демо-мессенджер"},
     "team": "Команда аналитики",
     "steps": [
       {"id": "analyst-access", "title": "Доступ к каталогу метрик", "detail": "Запросить доступ к определениям показателей и наборам данных.", "actionType": "request_access", "completed": false, "resource": "Каталог метрик"},

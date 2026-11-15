@@ -119,7 +119,7 @@ func TestBuddyUnknownQuestionDoesNotInventAnswerOrCallModel(t *testing.T) {
 		source: &mutableSource{plan: backend}, tickets: NewTicketClient(tickets.URL), catalog: testCatalog(t),
 		assistant: &Assistant{model: model, modelName: "test-model"},
 	})
-	response := postBuddy(handler, "Как оформить отгул?")
+	response := postBuddy(handler, "Какие скидки в кофейне?")
 	requireStatus(t, response, http.StatusOK)
 	var answer BuddyAnswer
 	if err := json.Unmarshal(response.Body.Bytes(), &answer); err != nil {
@@ -138,9 +138,11 @@ func TestLifecycleClaimsNeedCurrentPlanAndCorrectStatus(t *testing.T) {
 		"Заявка ожидает согласования. [demo-access-policy] [assigned-plan:" + plan.PlanID + "]",
 		"Заявка не создана. [demo-access-policy]",
 	} {
-		if lifecycleClaimsValid(claim, Plan{PlanID:plan.PlanID}) { t.Fatalf("unverified claim accepted: %s", claim) }
+		if lifecycleClaimsValid(claim, Plan{PlanID: plan.PlanID}) {
+			t.Fatalf("unverified claim accepted: %s", claim)
+		}
 	}
-	if !lifecycleClaimsValid("Заявка не создана. [assigned-plan:"+plan.PlanID+"]", Plan{PlanID:plan.PlanID}) {
+	if !lifecycleClaimsValid("Заявка не создана. [assigned-plan:"+plan.PlanID+"]", Plan{PlanID: plan.PlanID}) {
 		t.Fatal("correct current status rejected")
 	}
 }

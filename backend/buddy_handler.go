@@ -30,18 +30,24 @@ func (a *App) answerBuddy(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Вопрос должен содержать от 1 до 500 символов"})
 		return
 	}
-	if a.assistant == nil || a.catalog == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Помощник не настроен"})
-		return
-	}
 	plan, err := a.GetAssignedPlan(r.Context(), demoInternID)
 	if err != nil {
 		writePlanError(w, err)
 		return
 	}
+	if asksMentorIdentity(input.Question) {
+		writeJSON(w, http.StatusOK, mentorIdentityAnswer(plan))
+		return
+	}
+	if a.assistant == nil || a.catalog == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Помощник не настроен"})
+		return
+	}
 	if asksRequestStatus(input.Question) && a.statusTool != nil {
 		for _, step := range plan.Steps {
-			if step.ActionType != "request_access" { continue }
+			if step.ActionType != "request_access" {
+				continue
+			}
 			status, err := a.statusTool.GetStatus(r.Context(), plan, step)
 			if err != nil {
 				log.Printf("MCP status tool failed: %v", err)

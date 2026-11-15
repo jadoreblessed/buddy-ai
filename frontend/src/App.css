@@ -353,3 +353,44 @@
 @media (prefers-reduced-motion: reduce) {
   .app-shell *, .app-shell *::before, .app-shell *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+.scenario-page { max-width: 1100px; }
+.scenario-page h1 { font-size: clamp(42px, 5vw, 70px); }
+.scenario-intro { max-width: 67ch; margin: -12px 0 32px; color: #514b5d; line-height: 1.6; }
+.scenario-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.scenario-panel { min-width: 0; padding: clamp(22px, 3vw, 36px); border: 1px solid #dcd3e7; border-radius: 19px; background: var(--paper); box-shadow: 0 9px 0 #e7dff2; }
+.scenario-panel h2 { margin: 0 0 22px; font-size: 27px; letter-spacing: -.04em; }
+.scenario-panel label { display: block; margin-bottom: 10px; font-weight: 800; }
+.scenario-panel :is(input, textarea) { box-sizing: border-box; width: 100%; padding: 12px 14px; border: 1px solid #a89cb8; border-radius: 9px; background: #fff; color: var(--ink); font: inherit; }
+.scenario-panel textarea { min-height: 148px; line-height: 1.55; resize: vertical; }
+.scenario-panel .action-button { margin-top: 6px; }
+.scenario-panel button:disabled { opacity: .55; cursor: not-allowed; }
+.scenario-note { margin: 12px 0 18px; color: #5d5668; font-size: 13px; line-height: 1.5; }
+.scenario-recipient { display: grid; gap: 4px; margin: 0 0 24px; padding: 16px; border-radius: 12px; background: #eee3ff; font-size: 13px; }
+.scenario-recipient strong { font-size: 24px; color: #271a3c; }
+.scenario-recipient span { color: #4e4162; }
+.scenario-history { border-color: #d6e5cc; box-shadow: 0 9px 0 #e0ebd9; }
+.scenario-history > p { line-height: 1.5; }
+.scenario-records { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.scenario-records li { display: grid; justify-items: start; gap: 8px; padding: 15px; border: 1px solid #e5e1e9; border-radius: 10px; background: #fbfafc; overflow-wrap: anywhere; }
+.scenario-records li p { max-width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.scenario-records .text-button { margin-top: 4px; }
+.scenario-receipt { padding: 13px 15px; border-left: 4px solid #56894c; background: #e5f5da; font-weight: 750; }
+.scenario-error { padding: 13px 16px; border-left: 4px solid #b64051; background: #fff0ef; line-height: 1.5; }
+.scenario-error p { margin: 0; }
+.scenario-dialog { width: min(100% - 32px, 560px); max-height: min(90vh, 720px); padding: 30px; border: 1px solid #a78bc9; border-radius: 19px; background: var(--paper); color: var(--ink); box-shadow: 10px 10px 0 #9473cf; }
+.scenario-dialog::backdrop { background: rgb(22 19 34 / 68%); }
+.scenario-dialog h2 { margin: 0 0 18px; font-size: clamp(26px, 4vw, 38px); letter-spacing: -.05em; }
+.scenario-dialog p { line-height: 1.55; }
+.scenario-preview { max-height: 220px; margin: 12px 0; padding: 16px; overflow: auto; border-left: 4px solid #906bd0; background: #f1eafe; white-space: pre-wrap; overflow-wrap: anywhere; }
+.buddy-mentor-action { display: block; }
+.app-shell :is(input, dialog button):focus-visible { outline: 3px solid #8257d4; outline-offset: 3px; }
+@media (max-width: 900px) {
+  .scenario-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .scenario-page h1 { font-size: clamp(39px, 10vw, 50px); }
+  .scenario-panel { padding: 21px; }
+  .scenario-dialog { padding: 22px; }
+  .scenario-dialog .confirm-actions { flex-wrap: wrap; }
+}

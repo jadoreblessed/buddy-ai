@@ -24,10 +24,12 @@ func main() {
 		log.Fatal(err)
 	}
 	app := &App{
-		source:    NewHTTPOnboardingSource(onboardingURL),
-		tickets:   NewTicketClient(ticketURL),
-		catalog:   catalog,
-		assistant: &Assistant{model: NewOpenAIClient(aiConfig.BaseURL, aiConfig.Model, aiConfig.Key), modelName: aiConfig.Model},
+		source:     NewHTTPOnboardingSource(onboardingURL),
+		tickets:    NewTicketClient(ticketURL),
+		absences:   NewAbsenceClient(ticketURL),
+		messages:   NewMessageClient(ticketURL),
+		catalog:    catalog,
+		assistant:  &Assistant{model: NewOpenAIClient(aiConfig.BaseURL, aiConfig.Model, aiConfig.Key), modelName: aiConfig.Model},
 		statusTool: NewMCPStatusClient(ticketURL),
 	}
 	addr := os.Getenv("API_ADDR")
@@ -49,6 +51,11 @@ func newHandler(app *App) http.Handler {
 	mux.HandleFunc("GET /api/requests/current", app.getRequest)
 	mux.HandleFunc("POST /api/requests", app.createRequest)
 	mux.HandleFunc("POST /api/requests/{id}/approve", app.approveRequest)
+	mux.HandleFunc("GET /api/absences", app.getAbsences)
+	mux.HandleFunc("POST /api/absences", app.createAbsence)
+	mux.HandleFunc("POST /api/absences/{id}/approve", app.approveAbsence)
+	mux.HandleFunc("GET /api/mentor/messages", app.getMentorMessages)
+	mux.HandleFunc("POST /api/mentor/messages", app.createMentorMessage)
 
 	return allowFrontend(mux)
 }

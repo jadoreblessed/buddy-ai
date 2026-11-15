@@ -14,10 +14,11 @@ type AnswerSource struct {
 }
 
 type BuddyAnswer struct {
-	Answer  string         `json:"answer"`
-	Sources []AnswerSource `json:"sources"`
-	Model   string         `json:"model"`
-	ToolCall string        `json:"toolCall,omitempty"`
+	Answer          string         `json:"answer"`
+	Sources         []AnswerSource `json:"sources"`
+	Model           string         `json:"model"`
+	ToolCall        string         `json:"toolCall,omitempty"`
+	SuggestedAction string         `json:"suggestedAction,omitempty"`
 }
 
 type TextGenerator interface {
@@ -37,6 +38,31 @@ const buddyInstructions = `Ты AI-buddy в синтетическом демо�
 Укажи источник каждого утверждения рядом с ним как [id] из перечня переданных материалов. Конкретный ресурс, статус шага и состояние заявки подтверждай только назначенным планом; общую процедуру — инструкцией. Если в плане указано «заявка не создана», не говори, что она уже отправлена. Не путай порядок: стажёр создаёт заявку до согласования наставником, а не после него. Используй только приведённые id; не придумывай другие ссылки и не добавляй отдельный список источников в конце.`
 
 var citationPattern = regexp.MustCompile(`\[([^\[\]\n]+)\]`)
+
+// Identity and contact are never inferred by the language model.
+func asksMentorIdentity(question string) bool {
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.Trim(question, " \t\n\r?!.")), " "))
+	switch normalized {
+	case "кто мой наставник", "кто у меня наставник", "кто мой ментор",
+		"кому написать", "кому мне написать", "кому писать",
+		"как связаться с наставником", "как написать наставнику",
+		"как связаться с моим наставником":
+		return true
+	}
+	return false
+}
+
+func mentorIdentityAnswer(plan Plan) BuddyAnswer {
+	material := assignedPlanMaterial(plan)
+	source := AnswerSource{ID: material.ID, Title: material.Title,
+		Excerpt: fmt.Sprintf("Назначенный наставник: %s. Канал связи: %s.", plan.Mentor.Name, plan.Mentor.Channel)}
+	return BuddyAnswer{
+		Answer: fmt.Sprintf("Твой назначенный наставник — %s. Напиши ему через %s. [%s]",
+			plan.Mentor.Name, plan.Mentor.Channel, material.ID),
+		Sources:         []AnswerSource{source},
+		SuggestedAction: "message_mentor",
+	}
+}
 
 func citedSourcesValid(answer string, sources []AnswerSource) bool {
 	citations := citationPattern.FindAllStringSubmatch(answer, -1)
@@ -62,11 +88,21 @@ func lifecycleClaimsValid(answer string, plan Plan) bool {
 	approved := strings.Contains(text, "заявк") && (strings.Contains(text, "согласован") || strings.Contains(text, "одобрен"))
 	pending := strings.Contains(text, "заявк") && strings.Contains(text, "ожидает согласован")
 	notCreated := strings.Contains(text, "заявк") && (strings.Contains(text, "не создан") || strings.Contains(text, "не отправлен"))
-	if !approved && !pending && !notCreated { return true }
-	if !strings.Contains(answer, "[assigned-plan:"+plan.PlanID+"]") { return false }
-	if approved && (plan.Request == nil || plan.Request.Status != "approved") { return false }
-	if pending && (plan.Request == nil || plan.Request.Status != "pending") { return false }
-	if notCreated && plan.Request != nil { return false }
+	if !approved && !pending && !notCreated {
+		return true
+	}
+	if !strings.Contains(answer, "[assigned-plan:"+plan.PlanID+"]") {
+		return false
+	}
+	if approved && (plan.Request == nil || plan.Request.Status != "approved") {
+		return false
+	}
+	if pending && (plan.Request == nil || plan.Request.Status != "pending") {
+		return false
+	}
+	if notCreated && plan.Request != nil {
+		return false
+	}
 	return true
 }
 

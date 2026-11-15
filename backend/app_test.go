@@ -45,6 +45,7 @@ func samplePlans() (AssignedPlan, AssignedPlan) {
 	backend := AssignedPlan{
 		PlanID: "backend-v1", InternID: demoInternID, Intern: "Маша", Position: "backend",
 		Role: "Backend-стажёр", Team: "Платформа",
+		Mentor: Mentor{ID: "mentor-1", Name: "Алексей Морозов", Channel: "Демо-мессенджер"},
 		Steps: []AssignedStep{
 			{ID: "intro", Title: "Знакомство", ActionType: "none", Completed: true},
 			{ID: "backend-access", Title: "Доступ к стенду", ActionType: "request_access", Resource: "backend-staging"},
@@ -54,6 +55,7 @@ func samplePlans() (AssignedPlan, AssignedPlan) {
 	analyst := AssignedPlan{
 		PlanID: "analyst-v1", InternID: demoInternID, Intern: "Маша", Position: "analyst",
 		Role: "Аналитик", Team: "Аналитика",
+		Mentor: Mentor{ID: "mentor-1", Name: "Алексей Морозов", Channel: "Демо-мессенджер"},
 		Steps: []AssignedStep{
 			{ID: "analyst-access", Title: "Доступ к метрикам", ActionType: "request_access", Resource: "metrics"},
 			{ID: "report", Title: "Первый отчёт", ActionType: "none"},

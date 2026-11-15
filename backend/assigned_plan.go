@@ -20,6 +20,13 @@ type AssignedStep struct {
 	Completed  bool   `json:"completed"`
 }
 
+// Mentor is assigned by the external onboarding source, never by the browser.
+type Mentor struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Channel string `json:"channel"`
+}
+
 type AssignedPlan struct {
 	PlanID   string         `json:"planId"`
 	InternID string         `json:"internId"`
@@ -27,6 +34,7 @@ type AssignedPlan struct {
 	Position string         `json:"position"`
 	Role     string         `json:"role"`
 	Team     string         `json:"team"`
+	Mentor   Mentor         `json:"mentor"`
 	Steps    []AssignedStep `json:"steps"`
 }
 
@@ -42,7 +50,8 @@ func (a *App) GetAssignedPlan(ctx context.Context, internID string) (Plan, error
 		return Plan{}, err
 	}
 	if assigned.InternID != internID || assigned.PlanID == "" || assigned.Intern == "" ||
-		assigned.Position == "" || assigned.Team == "" || len(assigned.Steps) == 0 {
+		assigned.Position == "" || assigned.Team == "" || len(assigned.Steps) == 0 ||
+		assigned.Mentor.ID == "" || assigned.Mentor.Name == "" || assigned.Mentor.Channel == "" {
 		return Plan{}, ErrInvalidPlan
 	}
 
@@ -88,6 +97,7 @@ func (a *App) GetAssignedPlan(ctx context.Context, internID string) (Plan, error
 		Position: assigned.Position,
 		Role:     assigned.Role,
 		Team:     assigned.Team,
+		Mentor:   assigned.Mentor,
 		Steps:    make([]Step, 0, len(assigned.Steps)),
 		Request:  request,
 	}

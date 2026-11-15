@@ -35,16 +35,19 @@ type Plan struct {
 	Position string   `json:"position"`
 	Role     string   `json:"role"`
 	Team     string   `json:"team"`
+	Mentor   Mentor   `json:"mentor"`
 	Progress int      `json:"progress"`
 	Steps    []Step   `json:"steps"`
 	Request  *Request `json:"request"`
 }
 
 type App struct {
-	source    OnboardingSource
-	tickets   *TicketClient
-	catalog   *MaterialCatalog
-	assistant *Assistant
+	source     OnboardingSource
+	tickets    *TicketClient
+	absences   *AbsenceClient
+	messages   *MessageClient
+	catalog    *MaterialCatalog
+	assistant  *Assistant
 	statusTool *MCPStatusClient
 }
 
